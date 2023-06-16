@@ -71,8 +71,7 @@
         "removeFile": false,
         "renameFile": false,
         "exists": true,
-        "scope": [
-          "$DATA/LTheoryRedux/LTheoryRedux/**"]
+        "scope": ["**"]
       },
       "os": {
         "all": true
