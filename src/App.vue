@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { appWindow } from '@tauri-apps/api/window'
-import Greet from "./components/Greet.vue";
 
 async function isWindowMaximized(){
   const maximized = await appWindow.isMaximized();
