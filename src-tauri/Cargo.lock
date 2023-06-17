@@ -1596,7 +1596,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ltr-tauri"
+name = "ltr-launcher"
 version = "0.1.0"
 dependencies = [
  "serde",
