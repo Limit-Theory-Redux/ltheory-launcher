@@ -4,7 +4,6 @@ import App from "./App.vue";
 import router from "./router";
 
 // Tauri API
-import { invoke } from '@tauri-apps/api/tauri'
 import { appWindow } from '@tauri-apps/api/window'
 
 // Move to Center & Focus
