@@ -23,12 +23,22 @@
   const launchButtonText = ref('')
   let cachedPath = localStorage.getItem("executablePath")
 
-  if ( cachedPath && cachedPath.includes("lt64.exe")) {
-    gameExecutable.value = cachedPath
-    launchButtonText.value = 'Launch Game'
-  } else {
-    launchButtonText.value = 'Select Executable'
+  async function checkExecutable() {
+    if ( cachedPath && cachedPath.includes("lt64.exe") && await exists(cachedPath, {dir: BaseDirectory.Home}) ) {
+      gameExecutable.value = cachedPath
+      launchButtonText.value = 'Launch Game'
+    } else {
+      launchButtonText.value = 'Select Executable'
+
+      if ( cachedPath ) {
+        // reset
+        gameExecutable.value = ''
+        localStorage.removeItem("executablePath")
+      }
+    }
   }
+
+  checkExecutable()
 
   async function getExecuteCommandForOs () {
     const osType = await type();
@@ -72,8 +82,16 @@
       }
     } else {
       try {
-        if (await exists(gameExecutable.value, {dir: BaseDirectory.Home})) {
+        if (gameExecutable.value.length > 0 && await exists(gameExecutable.value, {dir: BaseDirectory.Home})) {
           invoke("launch_game", { dir: await dirname(gameExecutable.value), path: gameExecutable.value })
+        } else {
+          launchButtonText.value = 'Select Executable'
+
+          if ( cachedPath ) {
+            // reset
+            gameExecutable.value = ''
+            localStorage.removeItem("executablePath")
+          }
         }
       } catch(err) {
         console.error(err)
