@@ -1,0 +1,63 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "build": {
+    "beforeBuildCommand": "pnpm generate",
+    "beforeDevCommand": "pnpm dev",
+    "devPath": "http://localhost:3000",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "ltheory_redux_launcher",
+    "version": "0.2.0"
+  },
+  "tauri": {
+    "allowlist": {},
+    "bundle": {
+      "active": true,
+      "category": "Utility",
+      "copyright": "IllustrisJack",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
+      "icon": ["icons/LTR-Icon.ico"],
+      "identifier": "LTheoryRedux",
+      "longDescription": "",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
+      },
+      "shortDescription": "",
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": "",
+        "webviewInstallMode": {
+          "type": "offlineInstaller"
+        }
+      }
+    },
+    "security": {
+      "csp": null
+    },
+    "updater": {
+      "active": false
+    },
+    "windows": [
+      {
+        "visible": false,
+        "fullscreen": false,
+        "width": 1280,
+        "height": 720,
+        "resizable": true,
+        "title": "LTR Launcher",
+        "center": true,
+        "label": "main"
+      }
+    ]
+  }
+}
