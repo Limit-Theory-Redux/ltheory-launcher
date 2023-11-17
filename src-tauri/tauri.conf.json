@@ -1,0 +1,108 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "build": {
+    "beforeBuildCommand": "pnpm generate",
+    "beforeDevCommand": "pnpm dev",
+    "devPath": "http://localhost:3000",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "LTR Launcher",
+    "version": "0.2.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "app": {
+        "all": true,
+        "show": true,
+        "hide": true
+      },
+      "path": {
+        "all": true
+      },
+      "shell": {
+        "all": true,
+        "execute": true,
+        "sidecar": false,
+        "open": true,
+        "scope": [
+          {
+            "name": "sh",
+            "cmd": "sh",
+            "args": ["-c", { "validator": "\\S+" }]
+          },
+          {
+            "name": "cmd",
+            "cmd": "cmd",
+            "args": ["/C", { "validator": "\\S+" }]
+          }
+        ]
+      },
+      "fs": {
+        "all": true,
+        "readFile": true,
+        "writeFile": false,
+        "readDir": true,
+        "copyFile": false,
+        "createDir": false,
+        "removeDir": false,
+        "removeFile": false,
+        "renameFile": false,
+        "exists": true,
+        "scope": ["$APPCONFIG\\LTheoryRedux\\**"]
+      },
+      "os": {
+        "all": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "category": "Utility",
+      "copyright": "IllustrisJack",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
+      "icon": ["icons/LTR-Icon.ico"],
+      "identifier": "LTheoryRedux",
+      "longDescription": "",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
+      },
+      "shortDescription": "",
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": "",
+        "webviewInstallMode": {
+          "type": "offlineInstaller"
+        }
+      }
+    },
+    "security": {
+      "csp": null
+    },
+    "updater": {
+      "active": false
+    },
+    "windows": [
+      {
+        "visible": false,
+        "fullscreen": false,
+        "width": 420,
+        "height": 720,
+        "minWidth": 420,
+        "minHeight": 720,
+        "resizable": true,
+        "title": "LTR Launcher",
+        "center": true,
+        "label": "main"
+      }
+    ]
+  }
+}
