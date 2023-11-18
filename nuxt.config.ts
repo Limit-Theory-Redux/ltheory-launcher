@@ -2,7 +2,10 @@
 export default defineNuxtConfig({
   devtools: { enabled: false },
   ssr: false,
-  srcDir: "src",
+  srcDir: 'src',
+  css: [
+    '~/styles.css'
+  ],
   modules: [
     '@nuxtjs/tailwindcss',
     'vuetify-nuxt-module',
