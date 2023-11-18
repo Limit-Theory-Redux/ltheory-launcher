@@ -17,6 +17,7 @@
     "@nuxtjs/tailwindcss": "^6.9.4",
     "@unocss/nuxt": "^0.57.2",
     "nuxt": "^3.8.1",
+    "nuxt-security": "1.0.0-rc.4",
     "vue": "^3.3.8",
     "vue-router": "^4.2.5",
     "vuetify-nuxt-module": "^0.6.4"

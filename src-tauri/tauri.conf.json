@@ -29,12 +29,22 @@
           {
             "name": "sh",
             "cmd": "sh",
-            "args": ["-c", { "validator": "\\S+" }]
+            "args": [
+              "-c",
+              {
+                "validator": "\\S+"
+              }
+            ]
           },
           {
             "name": "cmd",
             "cmd": "cmd",
-            "args": ["/C", { "validator": "\\S+" }]
+            "args": [
+              "/C",
+              {
+                "validator": "\\S+"
+              }
+            ]
           }
         ]
       },
@@ -49,10 +59,27 @@
         "removeFile": false,
         "renameFile": false,
         "exists": true,
-        "scope": ["$APPCONFIG\\LTheoryRedux\\**"]
+        "scope": [
+          "$APPCONFIG\\LTheoryRedux\\**",
+          "**"
+        ]
       },
       "os": {
         "all": true
+      },
+      "dialog": {
+        "all": true
+      },
+      "window": {
+        "all": false,
+        "close": true,
+        "hide": true,
+        "show": true,
+        "maximize": true,
+        "minimize": true,
+        "unmaximize": true,
+        "unminimize": true,
+        "startDragging": true
       }
     },
     "bundle": {
@@ -63,8 +90,10 @@
         "depends": []
       },
       "externalBin": [],
-      "icon": ["icons/LTR-Icon.ico"],
-      "identifier": "LTheoryRedux",
+      "icon": [
+        "icons/LTR-Icon.ico"
+      ],
+      "identifier": "LTheoryReduxLauncher",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
@@ -98,10 +127,11 @@
         "height": 720,
         "minWidth": 420,
         "minHeight": 720,
-        "resizable": true,
+        "resizable": false,
         "title": "LTR Launcher",
         "center": true,
-        "label": "main"
+        "label": "main",
+        "decorations": false
       }
     ]
   }
