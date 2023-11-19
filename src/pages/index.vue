@@ -104,13 +104,7 @@
       v-else-if="gameDownloadUpdateInstalling"
       class="mb-auto text-blue-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
     >
-      Installing Update
-    </div>
-    <div
-      v-else-if="gameDownloadUpdateInstalling"
-      class="mb-auto text-blue-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
-    >
-      Downloading Game
+      Downloading
     </div>
     <div
       v-if="gameVersion.length > 0"
