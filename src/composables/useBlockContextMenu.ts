@@ -1,8 +1,8 @@
 import { onMounted } from "vue"
 
 export default function useBlockContextMenu() {
-  function blockContextMenu(event: MouseEvent) {
-    event.preventDefault();
+  function blockContextMenu(e: MouseEvent) {
+    e.preventDefault();
   }
 
   // if needed make this a plugin, but why?
@@ -11,12 +11,4 @@ export default function useBlockContextMenu() {
       document.addEventListener('contextmenu', blockContextMenu);
     });
   }
-
-  function cleanup() {
-    document.removeEventListener('contextmenu', blockContextMenu);
-  }
-
-  return {
-    cleanup,
-  };
 }

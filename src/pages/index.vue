@@ -14,47 +14,55 @@
       class="flex flex-col mb-6 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)] text-white font-semibold"
     >
       <div class="flex flex-row mb-2 noselect">
-        <a href="https://github.com/Limit-Theory-Redux/ltheory" target="_blank" draggable="false">
+        <a
+          href="https://github.com/Limit-Theory-Redux/ltheory"
+          target="_blank"
+          draggable="false"
+        >
           <v-icon class="i-mdi:github"
         /></a>
         <p class="ml-4">Source</p>
       </div>
       <div class="flex flex-row noselect" draggable="false">
-        <a href="https://discord.gg/MrfRR5ytJF" target="_blank" draggable="false">
+        <a
+          href="https://discord.gg/MrfRR5ytJF"
+          target="_blank"
+          draggable="false"
+        >
           <v-icon class="i-bi:discord"
         /></a>
         <p class="ml-4">Discord</p>
       </div>
     </div>
     <v-btn
-      v-if="!gameInstalled && !gameDownloadInstalling"
+      v-if="!gameInstalled && !gameDownloadUpdateInstalling"
       class="mb-auto w-48"
       size="large"
       @click="installGame()"
-      :disabled="gameDownloadInstalling"
+      :disabled="gameDownloadUpdateInstalling"
       >Install</v-btn
     >
     <v-btn
-      v-else-if="!gameInstalled && gameDownloadInstalling"
+      v-else-if="!gameInstalled && gameDownloadUpdateInstalling"
       class="mb-4 w-48"
       size="large"
       @click="installGame()"
-      :disabled="gameDownloadInstalling"
+      :disabled="gameDownloadUpdateInstalling"
       >Install</v-btn
     >
     <v-btn
       v-else
       class="mb-4 w-48"
       size="large"
-      :disabled="!gameInstalled || gameUpdateInstalling"
+      :disabled="!gameInstalled || gameDownloadUpdateInstalling"
       @click="launchGame()"
       >Launch</v-btn
     >
     <v-btn
-      v-if="gameInstalled && gameUpdateAvailable && !gameUpdateInstalling"
+      v-if="gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling"
       class="mb-4 w-48"
       size="large"
-      :disabled="!gameUpdateAvailable || gameUpdateInstalling"
+      :disabled="!gameUpdateAvailable || gameDownloadUpdateInstalling"
       @click="installGameUpdate()"
       >Update</v-btn
     >
@@ -83,19 +91,19 @@
       >Config</v-btn
     >
     <div
-      v-if="gameInstalled && gameUpdateAvailable && !gameUpdateInstalling"
+      v-if="gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling"
       class="mb-auto text-green-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
     >
       Update Available
     </div>
     <div
-      v-else-if="gameUpdateInstalling"
+      v-else-if="gameDownloadUpdateInstalling"
       class="mb-auto text-blue-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
     >
       Installing Update
     </div>
     <div
-      v-else-if="gameDownloadInstalling"
+      v-else-if="gameDownloadUpdateInstalling"
       class="mb-auto text-blue-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
     >
       Downloading Game
@@ -122,8 +130,8 @@
     </div>
     <v-progress-linear
       class="animate-slide-in-bottom mb-0"
-      v-if="gameDownloadInstalling || gameUpdateInstalling"
-      model-value="25"
+      v-if="gameDownloadUpdateInstalling"
+      :model-value="gameDownloadUpdateProgress"
       height="8"
       color="light-blue"
       buffer-value="0"
@@ -140,6 +148,7 @@ import { type } from "@tauri-apps/api/os";
 import { Command } from "@tauri-apps/api/shell";
 import { open } from "@tauri-apps/api/dialog";
 import { invoke } from "@tauri-apps/api/tauri";
+import { emit, listen } from '@tauri-apps/api/event'
 
 import type { releaseInfo } from "../types/index.ts";
 
@@ -147,15 +156,36 @@ const appVersion = await getVersion();
 const gameVersion = ref("");
 const gamePath = ref("");
 const gameInstalled = ref(false);
-const gameDownloadInstalling = ref(false);
+const gameDownloadUpdateProgress = ref(0);
+const gameDownloadUpdateInstalling = ref(false);
 const gameUpdateAvailable = ref(false);
-const gameUpdateInstalling = ref(false);
 const configFound = ref(false);
 const configUrl = "LTheoryRedux\\LTheoryRedux\\data\\user.ini";
+
+interface DownloadProgressEvent {
+  payload: number
+}
+
+interface InstallCompleteEvent {
+  payload: string
+}
+
+const unlistenProgress = await listen('download-progress', (event: DownloadProgressEvent) => {
+  gameDownloadUpdateProgress.value = event.payload;
+  console.log("Download progress: " + event.payload);
+})
+
+const unlistenCompleted = await listen('install-complete', (event: InstallCompleteEvent) => {
+  gameDownloadUpdateInstalling.value = false;
+  console.log("Install completed: " + event.payload);
+  getGameInstallationPath();
+  checkConfigExists();
+})
 
 // run on page load
 getGameInstallationPath();
 checkConfigExists();
+//checkUpdateAvailable();
 
 async function checkConfigExists() {
   try {
@@ -258,12 +288,20 @@ async function installGame() {
     defaultPath: await homeDir(),
   });
 
-  console.log(selected);
-  gameDownloadInstalling.value = true;
+  if (selected) {
+    const confirmed = await confirm(
+      "Are you sure? Limit Theory Redux will be installed to: " + selected + "\\Limit Theory Redux"
+    );
+
+    if (confirmed) {
+      invoke("download_game", { installPath: selected });
+      gameDownloadUpdateInstalling.value = true
+    }
+  }
 }
 
 async function installGameUpdate() {
-  gameUpdateInstalling.value = true;
+  gameDownloadUpdateInstalling.value = true;
 }
 
 async function launchGame() {

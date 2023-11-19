@@ -1,7 +1,8 @@
 <template>
   <div data-tauri-drag-region class="fixed justify-end text-end z-50 w-full bg-transparent text-xs">
     <v-icon @click="appWindow.minimize()" class="i-mdi:window-minimize text-white m-1"></v-icon>
-    <v-icon @click="appWindow.close()" class="i-mdi:window-close text-white m-1 ml-1"></v-icon>
+    <v-icon @click="isWindowMaximized()" class="i-mdi:window-maximize text-white m-1"></v-icon>
+    <v-icon @click="appWindow.close()" class="i-mdi:window-close text-white m-1"></v-icon>
   </div>
   <div class="relative">
     <video
@@ -24,19 +25,23 @@
       v-model="dynamicBg"
       label="Play Video"
     />
-    <NuxtPage data-tauri-drag-region class="backdrop-saturate-[75%]"/>
+    <NuxtPage data-tauri-drag-region draggable="false" class="backdrop-saturate-[75%]"/>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { appWindow } from '@tauri-apps/api/window'
 import useBlockContextMenu from "./composables/useBlockContextMenu";
+import useBlockFileDrop from './composables/useBlockFileDrop';
 
-const { cleanup } = useBlockContextMenu();
+useBlockFileDrop();
+useBlockContextMenu();
 const dynamicBg = ref(true);
+const windowMaximized = ref(false);
 
 // on page load
 getBgSettingFromStorage()
+getMaximizedFromStorage()
 
 function stringToBoolean(str: string): boolean {
   return str.toLowerCase() === "true";
@@ -48,6 +53,34 @@ function getBgSettingFromStorage() {
   if (fromStorage) {
     dynamicBg.value = stringToBoolean(fromStorage);
   }
+}
+
+function getMaximizedFromStorage() {
+  let fromStorage = localStorage.getItem("isMaximized");
+
+  if (fromStorage) {
+    windowMaximized.value = stringToBoolean(fromStorage);
+  }
+
+  setMaximized(windowMaximized.value)
+}
+
+function setMaximized(maximize: boolean) {
+  if (maximize == true) {
+    appWindow.maximize()
+    windowMaximized.value = true
+  }
+  else {
+    appWindow.unmaximize()
+    windowMaximized.value = false
+  }
+}
+
+async function isWindowMaximized() {
+  const maximized = await appWindow.isMaximized();
+  setMaximized(!maximized)
+
+  localStorage.setItem("isMaximized", windowMaximized.value.toString());
 }
 
 watch(dynamicBg, (dynamicBg) => {

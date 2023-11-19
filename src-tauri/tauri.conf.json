@@ -60,7 +60,6 @@
         "renameFile": false,
         "exists": true,
         "scope": [
-          "$APPCONFIG\\LTheoryRedux\\**",
           "**"
         ]
       },
@@ -128,6 +127,8 @@
         "minWidth": 420,
         "minHeight": 720,
         "resizable": false,
+        "alwaysOnTop": false,
+        "fileDropEnabled": false,
         "title": "LTR Launcher",
         "center": true,
         "label": "main",
