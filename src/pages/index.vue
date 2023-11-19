@@ -59,7 +59,9 @@
       >Launch</v-btn
     >
     <v-btn
-      v-if="gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling"
+      v-if="
+        gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling
+      "
       class="mb-4 w-48"
       size="large"
       :disabled="!gameUpdateAvailable || gameDownloadUpdateInstalling"
@@ -91,7 +93,9 @@
       >Config</v-btn
     >
     <div
-      v-if="gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling"
+      v-if="
+        gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling
+      "
       class="mb-auto text-green-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
     >
       Update Available
@@ -146,9 +150,9 @@ import { dirname, configDir, homeDir } from "@tauri-apps/api/path";
 import { exists, BaseDirectory, readTextFile } from "@tauri-apps/api/fs";
 import { type } from "@tauri-apps/api/os";
 import { Command } from "@tauri-apps/api/shell";
-import { open } from "@tauri-apps/api/dialog";
+import { open, confirm, message } from "@tauri-apps/api/dialog";
 import { invoke } from "@tauri-apps/api/tauri";
-import { emit, listen } from '@tauri-apps/api/event'
+import { emit, listen } from "@tauri-apps/api/event";
 
 import type { releaseInfo } from "../types/index.ts";
 
@@ -163,29 +167,34 @@ const configFound = ref(false);
 const configUrl = "LTheoryRedux\\LTheoryRedux\\data\\user.ini";
 
 interface DownloadProgressEvent {
-  payload: number
+  payload: number;
 }
 
 interface InstallCompleteEvent {
-  payload: string
+  payload: string;
 }
 
-const unlistenProgress = await listen('download-progress', (event: DownloadProgressEvent) => {
-  gameDownloadUpdateProgress.value = event.payload;
-  console.log("Download progress: " + event.payload);
-})
+const unlistenProgress = await listen(
+  "download-progress",
+  (event: DownloadProgressEvent) => {
+    gameDownloadUpdateProgress.value = event.payload;
+    console.log("Download progress: " + event.payload);
+  }
+);
 
-const unlistenCompleted = await listen('install-complete', (event: InstallCompleteEvent) => {
-  gameDownloadUpdateInstalling.value = false;
-  console.log("Install completed: " + event.payload);
-  getGameInstallationPath();
-  checkConfigExists();
-})
+const unlistenCompleted = await listen(
+  "install-complete",
+  (event: InstallCompleteEvent) => {
+    gameDownloadUpdateInstalling.value = false;
+    console.log("Install completed: " + event.payload);
+    getGameInstallationPath();
+    checkConfigExists();
+  }
+);
 
 // run on page load
-getGameInstallationPath();
+await getGameInstallationPath();
 checkConfigExists();
-//checkUpdateAvailable();
 
 async function checkConfigExists() {
   try {
@@ -199,6 +208,32 @@ async function checkConfigExists() {
     }
   } catch (err) {
     console.error(err);
+  }
+}
+
+async function checkUpdateAvailable() {
+  // Todo change to actual repo & use gh app auth
+  const response = await fetch(
+    "https://api.github.com/repos/IllustrisJack/ltheory-redux/releases/tags/latest"
+  );
+  const info: releaseInfo = await response.json();
+
+  if (info.name.indexOf(gameVersion.value) == -1) {
+    console.log(
+      "Update found. Installed version " +
+        gameVersion.value +
+        " | Latest version: " +
+        info.name
+    );
+    gameUpdateAvailable.value = true;
+  } else {
+    console.log(
+      "No update found. Installed version " +
+        gameVersion.value +
+        " | Latest version: " +
+        info.name
+    );
+    gameUpdateAvailable.value = false;
   }
 }
 
@@ -220,7 +255,10 @@ async function openConfig() {
 }
 
 async function createConfig() {
-  // create default config here
+  await message(
+    "This feature was not implemented yet. The game will automatically generate a config once you start & modify the settings or exit it using the menu",
+    "Not implemented"
+  );
 }
 
 async function getGameInstallationPath() {
@@ -261,6 +299,7 @@ async function getGameVersion() {
     if (match && match[1]) {
       console.log("Found version: " + match[1]);
       gameVersion.value = match[1];
+      await checkUpdateAvailable();
     } else {
       throw new Error("Version could not be found");
     }
@@ -270,19 +309,8 @@ async function getGameVersion() {
 }
 
 async function installGame() {
-  // TODO: Authentificate as GitHub App so we don´t get api rate limited
-  /* const response = await fetch("https://api.github.com/repos/IllustrisJack/ltheory-redux/releases/tags/latest");
-  const info: releaseInfo = await response.json();
-
-  let assets: Asset[] = info.assets
-
-  assets.forEach(asset => {
-    console.log(asset.name)
-  });
-  */
-
   const selected = await open({
-    title: "Select Installation Path",
+    title: "Select Installation Folder",
     multiple: false,
     directory: true,
     defaultPath: await homeDir(),
@@ -290,18 +318,23 @@ async function installGame() {
 
   if (selected) {
     const confirmed = await confirm(
-      "Are you sure? Limit Theory Redux will be installed to: " + selected + "\\Limit Theory Redux"
+      "Are you sure? Limit Theory Redux will be installed to: " +
+        selected +
+        "\\Limit Theory Redux"
     );
 
     if (confirmed) {
       invoke("download_game", { installPath: selected });
-      gameDownloadUpdateInstalling.value = true
+      gameDownloadUpdateInstalling.value = true;
     }
   }
 }
 
 async function installGameUpdate() {
-  gameDownloadUpdateInstalling.value = true;
+  if (gamePath.value.length > 0) {
+    gamePath.value.replace("Limit Theory Redux", "");
+    invoke("download_game", { installPath: gamePath.value });
+  }
 }
 
 async function launchGame() {
