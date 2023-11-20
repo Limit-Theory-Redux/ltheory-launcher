@@ -208,7 +208,7 @@ async function checkConfigExists() {
 async function checkUpdateAvailable() {
   // Todo change to actual repo & use gh app auth
   const response = await fetch(
-    "https://api.github.com/repos/IllustrisJack/ltheory-redux/releases/tags/latest"
+    "https://api.github.com/repos/Limit-Theory-Redux/ltheory/releases/tags/latest"
   );
   const info: releaseInfo = await response.json();
 
@@ -326,8 +326,10 @@ async function installGame() {
 
 async function installGameUpdate() {
   if (gamePath.value.length > 0) {
-    gamePath.value.replace("Limit Theory Redux", "");
+    gamePath.value = gamePath.value.replace("Limit Theory Redux", "");
+    console.log(gamePath.value)
     invoke("download_game", { installPath: gamePath.value });
+    gameDownloadUpdateInstalling.value = true;
   }
 }
 

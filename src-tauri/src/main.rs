@@ -79,7 +79,7 @@ fn launch_game<R: Runtime>(app: AppHandle<R>) {
 async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Result<(), String> {
     let client = Client::new();
     // make based on OS later
-    let url = String::from_str("https://github.com/IllustrisJack/ltheory-redux/releases/download/latest/ltheory-distro-win32.zip").unwrap();
+    let url = String::from_str("https://github.com/Limit-Theory-Redux/ltheory/releases/download/latest/ltheory-distro-win32.zip").unwrap();
     let dl_file_path_string = format!("{}{}", &install_path, "\\Limit Theory Redux.zip");
     let final_install_path_string = format!("{}{}", &install_path, "\\Limit Theory Redux");
     let installation_path = Path::new(final_install_path_string.as_str());
@@ -118,6 +118,13 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
         main_window.emit("download-progress", progress).map_err(|e| e.to_string())?;
 
         if downloaded == total_size {
+            if installation_path.exists() {
+                match std::fs::remove_dir_all(&installation_path) {
+                    Ok(_) => println!("Successfully deleted old installation!"),
+                    Err(e) => panic!("{}{}", "Error while deleting old installation", e),
+                }
+            }
+
             match extract_zip(&dl_file_path_string, &installation_path).await {
                 Ok(_) => println!("Zip successfully extracted!"),
                 Err(e) => panic!("{}{}", "Error while extracting Zip", e),
