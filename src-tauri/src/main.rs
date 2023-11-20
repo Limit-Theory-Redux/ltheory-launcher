@@ -154,8 +154,6 @@ async fn extract_zip(fname: &String, path: &Path) -> Result<(), String> {
                     Ok(_) => println!("Successfully changed working directory to {}!", path.display()),
                     Err(e) => panic!("Error while switching working directory: {}", e),
                 }
-                env::set_current_dir(&path).unwrap();
-                println!("Successfully changed working directory to {}!", &path.display());
             },
             Err(e) => panic!("{}", e)
         };
