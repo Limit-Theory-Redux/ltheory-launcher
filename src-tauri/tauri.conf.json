@@ -116,7 +116,12 @@
       "csp": null
     },
     "updater": {
-      "active": false
+      "active": true,
+      "endpoints": [
+          "https://gist.githubusercontent.com/IllustrisJack/33fe821858106705b04c59ce6a512400/raw"
+      ],
+      "dialog": true,
+      "pubkey": "${env.TAURI_PRIVATE_KEY}"
     },
     "windows": [
       {

@@ -15,12 +15,12 @@ tauri-build = { version = "1.5.0", features = [] }
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "1.5.2", features = [ "window-show", "window-close", "window-hide", "window-unminimize", "window-start-dragging", "window-minimize", "window-maximize", "window-unmaximize", "dialog-all", "os-all", "fs-all", "shell-all", "path-all", "app-all", "process-command-api"] }
+tauri = { version = "1.5.2", features = [ "updater", "window-show", "window-close", "window-hide", "window-unminimize", "window-start-dragging", "window-minimize", "window-maximize", "window-unmaximize", "dialog-all", "os-all", "fs-all", "shell-all", "path-all", "app-all", "process-command-api"] }
 # Plugins
 tauri-plugin-single-instance = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
 tauri-plugin-positioner = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
 winapi = "0.3.9"
-winreg = "0.51"
+winreg = "0.52"
 reqwest = { version = "0.11.3", features = ["stream"] }
 futures-util = "0.3.14"
 zip = "0.6.6"
