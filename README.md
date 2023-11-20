@@ -12,7 +12,7 @@ A simple Limit Theory Redux launcher written with use of the Tauri toolkit (Rust
 <p align="center">
   <strong>Fullscreen without video</strong>
   <p align="center">
-    <img src="https://github.com/Limit-Theory-Redux/ltheory-launcher/assets/76592751/897dfe49-b186-4fd1-88b2-259c747a68eb"/>
+    <img src="https://github.com/Limit-Theory-Redux/ltheory-launcher/assets/76592751/e75db02c-646e-41ac-8f7a-8a34c465673f"/>
   </p>
 </p>
 
