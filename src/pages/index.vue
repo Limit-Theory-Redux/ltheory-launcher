@@ -213,20 +213,20 @@ async function checkUpdateAvailable() {
   const info: releaseInfo = await response.json();
 
   if (info.name.indexOf(gameVersion.value) == -1) {
-    console.log(
-      "Update found. Installed version " +
-        gameVersion.value +
-        " | Latest version: " +
-        info.name
-    );
+    let str =
+      "Update found. Installed version: " +
+      gameVersion.value +
+      " | Latest version: " +
+      info.name;
+    console.log(str);
     gameUpdateAvailable.value = true;
   } else {
-    console.log(
-      "No update found. Installed version " +
-        gameVersion.value +
-        " | Latest version: " +
-        info.name
-    );
+    let str =
+      "No update found. Installed version: " +
+      gameVersion.value +
+      " | Latest version: " +
+      info.name;
+    console.log(str);
     gameUpdateAvailable.value = false;
   }
 }
