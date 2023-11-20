@@ -298,6 +298,7 @@ async function getGameVersion() {
       throw new Error("Version could not be found");
     }
   } catch (err) {
+    gameVersion.value = ""
     console.error("Error while reading game version from Version.lua:", err);
   }
 }
