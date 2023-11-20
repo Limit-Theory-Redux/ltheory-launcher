@@ -327,7 +327,7 @@ async function installGame() {
 
 async function installGameUpdate() {
   if (gamePath.value.length > 0) {
-    gamePath.value = gamePath.value.replace("Limit Theory Redux", "");
+    gamePath.value = gamePath.value.replace("\\Limit Theory Redux", "");
     console.log(gamePath.value)
     invoke("download_game", { installPath: gamePath.value });
     gameDownloadUpdateInstalling.value = true;
