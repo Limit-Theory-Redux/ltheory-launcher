@@ -18,7 +18,7 @@
     />
     <img
       v-show="!dynamicBg"
-      src="/assets/LTR_BG_1.png"
+      src="/assets/LTR_SPLASH.png"
       class="absolute inset-0 w-full h-full object-cover z-0"
     />
     <v-switch
