@@ -228,13 +228,6 @@ fn main() {
                 _ => {}
             });
 
-            //TODO: show when frontend is loaded
-            tauri::async_runtime::spawn(async move {
-                // ! dirty code :d
-                std::thread::sleep(std::time::Duration::from_secs(5));
-                main_window.show().unwrap();
-            });
-
             Ok(())
         })
         .plugin(tauri_plugin_positioner::init())

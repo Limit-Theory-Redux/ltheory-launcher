@@ -14,6 +14,7 @@
       src="/assets/LTR_BG_VID.mp4"
       type="video/mp4"
       class="absolute inset-0 w-full h-full object-cover z-0"
+      @loadeddata="onLoadVideo()"
     />
     <img
       v-show="!dynamicBg"
@@ -86,4 +87,8 @@ async function isWindowMaximized() {
 watch(dynamicBg, (dynamicBg) => {
   localStorage.setItem("dynamicBg", dynamicBg.toString());
 });
+
+function onLoadVideo() {
+  appWindow.show()
+}
 </script>
