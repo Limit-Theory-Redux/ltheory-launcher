@@ -13,26 +13,28 @@
     <div
       class="flex flex-col mb-6 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)] text-white font-semibold"
     >
-      <div class="flex flex-row mb-2 noselect">
-        <a
-          href="https://github.com/Limit-Theory-Redux/ltheory"
-          target="_blank"
+      <a
+        href="https://github.com/Limit-Theory-Redux/ltheory"
+        target="_blank"
+        draggable="false"
+        class="mb-2"
+      >
+        <div
+          class="flex flex-row noselect border-white border-solid border-2 py-1 px-8 rounded-3xl"
+        >
+          <v-icon class="i-mdi:github" />
+          <p class="ml-4">Source</p>
+        </div>
+      </a>
+      <a href="https://discord.gg/MrfRR5ytJF" target="_blank" draggable="false">
+        <div
+          class="flex flex-row noselect border-white border-solid border-2 py-1 px-8 rounded-3xl"
           draggable="false"
         >
-          <v-icon class="i-mdi:github"
-        /></a>
-        <p class="ml-4">Source</p>
-      </div>
-      <div class="flex flex-row noselect" draggable="false">
-        <a
-          href="https://discord.gg/MrfRR5ytJF"
-          target="_blank"
-          draggable="false"
-        >
-          <v-icon class="i-bi:discord"
-        /></a>
-        <p class="ml-4">Discord</p>
-      </div>
+          <v-icon class="i-bi:discord" />
+          <p class="ml-4">Discord</p>
+        </div>
+      </a>
     </div>
     <v-btn
       v-if="!gameInstalled && !gameDownloadUpdateInstalling"
@@ -298,7 +300,7 @@ async function getGameVersion() {
       throw new Error("Version could not be found");
     }
   } catch (err) {
-    gameVersion.value = ""
+    gameVersion.value = "";
     console.error("Error while reading game version from Version.lua:", err);
   }
 }
@@ -328,7 +330,7 @@ async function installGame() {
 async function installGameUpdate() {
   if (gamePath.value.length > 0) {
     gamePath.value = gamePath.value.replace("\\Limit Theory Redux", "");
-    console.log(gamePath.value)
+    console.log(gamePath.value);
     invoke("download_game", { installPath: gamePath.value });
     gameDownloadUpdateInstalling.value = true;
   }
