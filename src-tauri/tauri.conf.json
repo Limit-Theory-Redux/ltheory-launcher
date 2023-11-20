@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "LTR Launcher",
-    "version": "0.2.4"
+    "version": "0.3.0"
   },
   "tauri": {
     "allowlist": {
@@ -116,7 +116,12 @@
       "csp": null
     },
     "updater": {
-      "active": false
+      "active": true,
+      "endpoints": [
+          "https://gist.githubusercontent.com/IllustrisJack/33fe821858106705b04c59ce6a512400/raw"
+      ],
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY5Q0Q2RDgyQjgyQUZCRkYKUldULyt5cTRnbTNOYVVxb2FEVk9pa2dKWG12OFZpQkNZNG5aMFJVdHExRkI3dVhFWXRvdEhaa0oK"
     },
     "windows": [
       {
