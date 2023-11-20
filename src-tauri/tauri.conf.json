@@ -1,39 +1,73 @@
 {
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "build": {
+    "beforeBuildCommand": "pnpm generate",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": false
+    "devPath": "http://localhost:3000",
+    "distDir": "../dist"
   },
   "package": {
     "productName": "LTR Launcher",
-    "version": "0.1.1"
+    "version": "0.2.0"
   },
   "tauri": {
     "allowlist": {
-      "all": false,
+      "app": {
+        "all": true,
+        "show": true,
+        "hide": true
+      },
+      "path": {
+        "all": true
+      },
       "shell": {
-        "all": false,
+        "all": true,
         "execute": true,
+        "sidecar": false,
         "open": true,
         "scope": [
           {
             "name": "sh",
             "cmd": "sh",
-            "args": ["-c", { "validator": "\\S+" }]
+            "args": [
+              "-c",
+              {
+                "validator": "\\S+"
+              }
+            ]
           },
           {
             "name": "cmd",
             "cmd": "cmd",
-            "args": ["/C", { "validator": "\\S+" }]
+            "args": [
+              "/C",
+              {
+                "validator": "\\S+"
+              }
+            ]
           }
         ]
       },
-      "app": {
+      "fs": {
         "all": true,
-        "show": true,
-        "hide": true
+        "readFile": true,
+        "writeFile": false,
+        "readDir": true,
+        "copyFile": false,
+        "createDir": false,
+        "removeDir": false,
+        "removeFile": false,
+        "renameFile": false,
+        "exists": true,
+        "scope": [
+          "**"
+        ]
+      },
+      "os": {
+        "all": true
+      },
+      "dialog": {
+        "all": true
       },
       "window": {
         "all": false,
@@ -44,46 +78,39 @@
         "minimize": true,
         "unmaximize": true,
         "unminimize": true,
-        "startDragging": true,
-        "setFocus": true,
-        "print": false,
-        "center": true
-      },
-      "path": {
-        "all": true
-      },
-      "dialog": {
-        "all": false,
-        "ask": true,
-        "confirm": true,
-        "message": true,
-        "open": true,
-        "save": false
-      },
-      "fs": {
-        "all": false,
-        "readFile": false,
-        "writeFile": false,
-        "readDir": false,
-        "copyFile": false,
-        "createDir": false,
-        "removeDir": false,
-        "removeFile": false,
-        "renameFile": false,
-        "exists": true,
-        "scope": ["**"]
-      },
-      "os": {
-        "all": true
+        "startDragging": true
       }
     },
     "bundle": {
       "active": true,
+      "category": "Utility",
+      "copyright": "IllustrisJack",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
       "icon": [
-        "icons/LTR_Icon.ico"
+        "icons/LTR-Icon.ico"
       ],
-      "identifier": "com.ltr.ltr-launcher",
-      "targets": "all"
+      "identifier": "LTheoryReduxLauncher",
+      "longDescription": "",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
+      },
+      "shortDescription": "",
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": "",
+        "webviewInstallMode": {
+          "type": "offlineInstaller"
+        }
+      }
     },
     "security": {
       "csp": null
@@ -93,16 +120,19 @@
     },
     "windows": [
       {
+        "visible": false,
         "fullscreen": false,
-        "resizable": true,
-        "title": "LTR Launcher",
-        "width": 1280,
+        "width": 420,
         "height": 720,
-        "minWidth": 1280,
+        "minWidth": 420,
         "minHeight": 720,
+        "resizable": false,
         "alwaysOnTop": false,
-        "decorations": false,
-        "visible": true
+        "fileDropEnabled": false,
+        "title": "LTR Launcher",
+        "center": true,
+        "label": "main",
+        "decorations": false
       }
     ]
   }

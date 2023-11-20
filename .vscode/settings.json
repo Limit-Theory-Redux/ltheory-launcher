@@ -1,0 +1,19 @@
+{
+  "workbench.colorCustomizations": {
+    "minimap.background": "#00000000",
+    "scrollbar.shadow": "#00000000"
+  },
+  "files.exclude": {
+    "node_modules": true
+  },
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "rust-analyzer.linkedProjects": [
+    ".\\src-tauri\\Cargo.toml",
+    "./src-tauri/Cargo.toml"
+  ]
+}
