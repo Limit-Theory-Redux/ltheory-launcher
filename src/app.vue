@@ -59,7 +59,7 @@ import { relaunch } from "@tauri-apps/api/process";
 import { confirm } from "@tauri-apps/api/dialog";
 
 useBlockFileDrop();
-//useBlockContextMenu();
+useBlockContextMenu();
 const dynamicBg = ref(true);
 const windowMaximized = ref(false);
 
