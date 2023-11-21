@@ -36,6 +36,7 @@
     <v-switch
       class="absolute bottom-0 left-4 h-14 z-10 text-white"
       v-model="dynamicBg"
+      color="indigo"
       label="Play Video"
     />
     <NuxtPage
