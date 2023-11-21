@@ -37,7 +37,7 @@ jobs:
               repo: context.repo.repo,
               tag_name: `v${process.env.PACKAGE_VERSION}`,
               name: `LTR Launcher v${process.env.PACKAGE_VERSION}`,
-              body: 'Includes the windows installer.\r\nAlso includes "portable executable", keep in mind that this one does not ensure WebView2 is installed on your system, nor sets the environment variables needed for the auto updater.',
+              body: 'Includes the windows installer.\r\n\r\nAlso includes "portable executable", keep in mind that this one does not ensure WebView2 is installed on your system, nor sets the environment variables needed for the auto updater.',
               draft: true,
               prerelease: false
             })
