@@ -1,11 +1,11 @@
 [package]
 name = "ltheory_redux_launcher"
-version = "0.3.1"
+version = "0.3.2"
 description = ""
 authors = ["IllustrisJack"]
 repository = ""
 edition = "2021"
-rust-version = "1.60"
+rust-version = "1.72"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

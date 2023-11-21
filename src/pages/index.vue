@@ -170,6 +170,15 @@ interface InstallCompleteEvent {
   payload: string;
 }
 
+interface LauncherUpdateStatusEvent {
+  payload: LauncherUpdateStatusEventPayload;
+}
+
+interface LauncherUpdateStatusEventPayload {
+  status: string,
+  error: string
+}
+
 const unlistenProgress = await listen(
   "download-progress",
   (event: DownloadProgressEvent) => {
@@ -187,6 +196,13 @@ const unlistenCompleted = await listen(
     checkConfigExists();
   }
 );
+
+listen("tauri://update-status", (event: LauncherUpdateStatusEvent) => {
+  console.log("New status: ", event);
+  if (event.payload.status == "PENDING") {
+    gameDownloadUpdateInstalling.value = true
+  }
+});
 
 // run on page load
 await getGameInstallationPath();
