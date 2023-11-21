@@ -130,9 +130,7 @@ async function checkForUpdate() {
       );
 
       if (confirmed) {
-        console.log(
-          `Installing update ${manifest?.version}, ${manifest?.date}, ${manifest?.body}`
-        );
+        console.log(`Installing update ${manifest?.version}, ${manifest?.date}, ${manifest?.body}`);
 
         await installUpdate();
 
