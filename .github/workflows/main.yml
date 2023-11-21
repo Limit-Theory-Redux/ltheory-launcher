@@ -95,13 +95,13 @@ jobs:
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
       - name: Build Portable Binaries (Windows)
-        if: ${{ matrix.platform == 'windows-latest' }}
+        if: matrix.platform == 'windows-latest'
         run: |
           cargo build --target ${{ matrix.target }}
           cargo build --release --target ${{ matrix.target }}
           mv ./target/${{ matrix.target }}/release/LTheoryReduxLauncher.exe ./target/${{ matrix.target }}/release/LTheoryReduxLauncher_${{ github.ref_name }}_x64-portable.exe
       - name: Upload Portable Binaries (Windows)
-        if: ${{ matrix.platform == 'windows-latest' }}
+        if: matrix.platform == 'windows-latest'
         run: bash -c 'gh release upload ${{ github.ref_name }} ./target/${{ matrix.target }}/{release/LTheoryReduxLauncher_${{ github.ref_name }}_x64-portable.exe} --clobber'
 
   publish-release:
