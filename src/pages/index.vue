@@ -230,7 +230,7 @@ async function checkUpdateAvailable() {
   );
   const info: releaseInfo = await response.json();
 
-  if (info.name.indexOf(gameVersion.value) == -1) {
+  if (info.name && info.name.indexOf(gameVersion.value) == -1) {
     let str =
       "Update found. Installed version: " +
       gameVersion.value +
