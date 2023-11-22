@@ -2,8 +2,8 @@
 
 ---
 
-# LTR Launcher
-A simple Limit Theory Redux launcher written with use of the Tauri toolkit (Rust, Nuxt.js/Vue.js) currently targeted at Windows only.
+# Limit Theory Redux Launcher
+A simple Limit Theory Redux launcher written with use of the Tauri toolkit (Rust, Nuxt 3/Vue.js) currently targeted at Windows only.
 
 # Screenshots
 
