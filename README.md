@@ -1,3 +1,7 @@
+![image](https://github.com/Limit-Theory-Redux/ltheory-launcher/assets/76592751/dc36804b-9938-4539-a882-07fb90205ab0)
+
+---
+
 # LTR Launcher
 A simple Limit Theory Redux launcher written with use of the Tauri toolkit (Rust, Nuxt.js/Vue.js) currently targeted at Windows only.
 
