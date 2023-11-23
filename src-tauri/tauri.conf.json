@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "LTheoryReduxLauncher",
-    "version": "0.3.3"
+    "version": "0.3.4"
   },
   "tauri": {
     "allowlist": {
@@ -130,7 +130,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/Limit-Theory-Redux/ltheory-launcher/releases/download/latest/latest.json"
+        "https://github.com/Limit-Theory-Redux/ltheory-launcher/releases/latest/download/latest.json"
       ],
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY5Q0Q2RDgyQjgyQUZCRkYKUldULyt5cTRnbTNOYVVxb2FEVk9pa2dKWG12OFZpQkNZNG5aMFJVdHExRkI3dVhFWXRvdEhaa0oK"

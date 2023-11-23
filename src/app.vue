@@ -48,6 +48,7 @@
 </template>
 
 <script lang="ts" setup>
+import { getVersion } from "@tauri-apps/api/app";
 import { appWindow } from "@tauri-apps/api/window";
 import useBlockContextMenu from "./composables/useBlockContextMenu";
 import useBlockFileDrop from "./composables/useBlockFileDrop";
@@ -123,11 +124,12 @@ function onLoadVideo() {
 
 async function checkForUpdate() {
   try {
+    const version = await getVersion();
     const { shouldUpdate, manifest } = await checkUpdate();
-    if (shouldUpdate) {
+    if (version && shouldUpdate && manifest) {
       const confirmed = await confirm(
-        "An update for the Launcher is available. Do you want to download the update?",
-        { title: "Update Available", type: "info" }
+        "An update for the Launcher is available (" + version + " > " + manifest.version + ")",
+        { title: "Update Available", type: "info", okLabel: "Download", cancelLabel: "Cancel" }
       );
 
       if (confirmed) {
