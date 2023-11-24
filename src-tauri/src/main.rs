@@ -13,6 +13,7 @@ use tokio::{fs::File, io::AsyncWriteExt};
 use futures_util::StreamExt;
 use winreg::enums::*;
 use winreg::RegKey;
+use window_shadows::set_shadow;
 
 #[derive(Clone, serde::Serialize)]
 struct Payload {
@@ -227,6 +228,9 @@ fn main() {
                 WindowEvent::Resized(..) => std::thread::sleep(std::time::Duration::from_nanos(1)),
                 _ => {}
             });
+
+            #[cfg(any(windows, target_os = "macos"))]
+            set_shadow(&main_window, true).unwrap();
 
             Ok(())
         })
