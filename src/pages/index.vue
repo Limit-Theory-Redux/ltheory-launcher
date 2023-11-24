@@ -208,6 +208,7 @@ listen("tauri://update-status", (event: LauncherUpdateStatusEvent) => {
 await getGameInstallationPath();
 checkConfigExists();
 
+// TODO: filesystem functions like these could entirely moved to rust, just for application safety
 async function checkConfigExists() {
   try {
     var configDirPath = await configDir();
