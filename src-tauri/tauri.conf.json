@@ -148,8 +148,11 @@
         "fileDropEnabled": false,
         "title": "LTR Launcher",
         "center": true,
+        "focus": true,
         "label": "main",
-        "decorations": false
+        "decorations": false,
+        "closable": false,
+        "minimizable": false
       }
     ]
   }
