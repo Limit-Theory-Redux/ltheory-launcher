@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths-ignore:
+    - '**/.github/workflows/test_pr.yml'
     - '**/README.md'
     - '**/LICENSE'
     - '**/.vscode/**'
