@@ -119,13 +119,6 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
         main_window.emit("download-progress", progress).map_err(|e| e.to_string())?;
 
         if downloaded == total_size {
-            if installation_path.exists() {
-                match std::fs::remove_dir_all(&installation_path) {
-                    Ok(_) => println!("Successfully deleted old installation!"),
-                    Err(e) => panic!("{}{}", "Error while deleting old installation", e),
-                }
-            }
-
             match extract_zip(&dl_file_path_string, &installation_path).await {
                 Ok(_) => println!("Zip successfully extracted!"),
                 Err(e) => panic!("{}{}", "Error while extracting Zip", e),
