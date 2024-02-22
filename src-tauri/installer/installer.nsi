@@ -408,12 +408,10 @@ Function .onInit
     !endif
   ${EndIf}
 
-
   !if "${INSTALLMODE}" == "both"
     !insertmacro MULTIUSER_INIT
   !endif
 FunctionEnd
-
 
 Section EarlyChecks
   ; Abort silent installer if downgrades is disabled
@@ -674,7 +672,7 @@ Section Uninstall
 SectionEnd
 
 Function RestorePreviousInstallLocation
-  ReadRegStr $4 SHCTX "${MANUPRODUCTKEY}" ""
+  ReadRegStr $4 SHCTX "${MANUPRODUCTKEY}" "InstallDir"
   StrCmp $4 "" +2 0
     StrCpy $INSTDIR $4
 FunctionEnd
