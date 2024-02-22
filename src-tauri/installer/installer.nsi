@@ -386,6 +386,9 @@ Function .onInit
 
   !insertmacro SetContext
 
+  ; Check first if existing in registry not after setting a new value duh
+  Call RestorePreviousInstallLocation
+
   ${If} $INSTDIR == ""
     ; Set default install location
     !if "${INSTALLMODE}" == "perMachine"
@@ -403,8 +406,6 @@ Function .onInit
     !else if "${INSTALLMODE}" == "currentUser"
       StrCpy $INSTDIR "$LOCALAPPDATA\${PRODUCTNAME}"
     !endif
-
-    Call RestorePreviousInstallLocation
   ${EndIf}
 
 
