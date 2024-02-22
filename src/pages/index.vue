@@ -128,15 +128,28 @@
       Launcher Version
       <div class="text-blue-400 font-normal">{{ appVersion }}</div>
     </div>
-    <v-progress-linear
-      class="animate-slide-in-bottom mb-0"
-      v-if="gameDownloadUpdateInstalling"
-      :model-value="gameDownloadUpdateProgress"
-      height="8"
-      color="light-blue"
-      buffer-value="0"
-      stream
-    ></v-progress-linear>
+    <div class="w-full" v-if="gameDownloadUpdateInstalling">
+      <p class="text-white text-right font-light text-sm mr-2 noselect" v-if="!gameDownloadUpdateExtracting">{{ gameDownloadUpdateSpeed }} MB/s</p>
+      <p class="text-white text-right font-light text-sm mr-2 noselect" v-else>Extracting Files</p>
+      <v-progress-linear
+        v-if="!gameDownloadUpdateExtracting"
+        class="animate-slide-in-bottom mb-0"
+        :model-value="gameDownloadUpdateProgress"
+        height="8"
+        color="light-blue"
+        buffer-value="0"
+        stream
+      ></v-progress-linear>
+      <v-progress-linear
+        v-else
+        class="animate-slide-in-bottom mb-0"
+        :model-value="gameDownloadUpdateProgress"
+        height="8"
+        color="light-blue"
+        buffer-value="0"
+        indeterminate
+      ></v-progress-linear>
+    </div>
   </div>
 </template>
 
@@ -157,12 +170,14 @@ const gameVersion = ref("");
 const gamePath = ref("");
 const gameInstalled = ref(false);
 const gameDownloadUpdateProgress = ref(0);
+const gameDownloadUpdateSpeed = ref(0);
 const gameDownloadUpdateInstalling = ref(false);
+const gameDownloadUpdateExtracting = ref(false);
 const gameUpdateAvailable = ref(false);
 const configFound = ref(false);
 const configUrl = "LTheoryRedux\\LTheoryRedux\\data\\user.ini";
 
-interface DownloadProgressEvent {
+interface TauriEmitEvent {
   payload: number;
 }
 
@@ -175,21 +190,40 @@ interface LauncherUpdateStatusEvent {
 }
 
 interface LauncherUpdateStatusEventPayload {
-  status: string,
-  error: string
+  status: string;
+  error: string;
 }
 
 const unlistenProgress = await listen(
   "download-progress",
-  (event: DownloadProgressEvent) => {
+  (event: TauriEmitEvent) => {
     gameDownloadUpdateProgress.value = event.payload;
     console.log("Download progress: " + event.payload);
+  }
+);
+
+const unlistenSpeed = await listen(
+  "download-speed",
+  (event: TauriEmitEvent) => {
+    // set var and update it to MB/s and floor to 2 digits
+    let value = Math.floor(event.payload / 1024 * 10) / 10;
+    gameDownloadUpdateSpeed.value = value;
+    console.log("Download speed: " + value);
+  }
+);
+
+const unlistenExtracting = await listen(
+  "download-extracting",
+  (event) => {
+    gameDownloadUpdateExtracting.value = true;
+    console.log("Files Extracting.");
   }
 );
 
 const unlistenCompleted = await listen(
   "install-complete",
   (event: InstallCompleteEvent) => {
+    gameDownloadUpdateExtracting.value = false;
     gameDownloadUpdateInstalling.value = false;
     console.log("Install completed: " + event.payload);
     getGameInstallationPath();
@@ -200,7 +234,7 @@ const unlistenCompleted = await listen(
 listen("tauri://update-status", (event: LauncherUpdateStatusEvent) => {
   console.log("New status: ", event);
   if (event.payload.status == "PENDING") {
-    gameDownloadUpdateInstalling.value = true
+    gameDownloadUpdateInstalling.value = true;
   }
 });
 

@@ -1,19 +1,21 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use futures_util::StreamExt;
 use reqwest::Client;
+use std::env;
+use std::io;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::Command;
-use std::io;
 use std::str::FromStr;
-use std::env;
 use tauri::{AppHandle, Manager, Runtime, WindowEvent};
 use tokio::{fs::File, io::AsyncWriteExt};
-use futures_util::StreamExt;
+use window_shadows::set_shadow;
 use winreg::enums::*;
 use winreg::RegKey;
-use window_shadows::set_shadow;
+
+mod speed_calc;
 
 #[derive(Clone, serde::Serialize)]
 struct Payload {
@@ -85,7 +87,8 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
     let final_install_path_string = format!("{}{}", &install_path, "\\Limit Theory Redux");
     let installation_path = Path::new(final_install_path_string.as_str());
 
-    let response = client.get(&url)
+    let response = client
+        .get(&url)
         .send()
         .await
         .map_err(|_| format!("Get error for: '{}'", &url))?;
@@ -101,6 +104,11 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
     let mut downloaded: u64 = 0;
     let mut stream = response.bytes_stream();
 
+    let mut speed_calculator = speed_calc::SpeedCalculator::new(5000);
+    let mut start_time = std::time::Instant::now();
+    let mut last_speed_emit_time = std::time::Instant::now();
+    let mut last_downloaded = 0_u64;
+
     let Some(main_window) = app.get_window("main") else {
         return Ok(());
     };
@@ -113,15 +121,43 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
         downloaded += chunk.len() as u64;
 
         let progress = (downloaded as f64 / total_size as f64) * 100.0;
+        let elapsed_time = start_time.elapsed().as_secs_f64();
 
-        println!("Downloaded: {} | Total size: {} | Progress: {}", downloaded, total_size, progress);
+        main_window
+            .emit("download-progress", progress)
+            .map_err(|e| e.to_string())?;
 
-        main_window.emit("download-progress", progress).map_err(|e| e.to_string())?;
+        if elapsed_time > 0.0 {
+            let speed = ((downloaded - last_downloaded) as f64 / 1024.0) / elapsed_time;
+            speed_calculator.add_speed(speed);
+            let average_speed = speed_calculator.average_speed();
+
+            if last_speed_emit_time.elapsed() > std::time::Duration::new(0, 250000000) {
+                println!(
+                        "Downloaded: {} | Total size: {} | Progress: {:.2}% | Average Download speed: {:.2} KB/s",
+                        downloaded, total_size, progress, average_speed
+                    );
+
+                main_window
+                    .emit("download-speed", average_speed)
+                    .map_err(|e| e.to_string())?;
+
+                last_speed_emit_time = std::time::Instant::now();
+            }
+
+            last_downloaded = downloaded;
+            start_time = std::time::Instant::now();
+        }
 
         if downloaded == total_size {
-            let dir = std::fs::read_dir(&installation_path).unwrap();
-            delete_directory_contents(dir);
-            println!("Successfully deleted old installation contents.");
+            if let Ok(dir) = std::fs::read_dir(&installation_path) {
+                delete_directory_contents(dir);
+                println!("Successfully deleted old installation contents.");
+            }
+
+            main_window
+                .emit("download-extracting", ())
+                .map_err(|e| e.to_string())?;
 
             match extract_zip(&dl_file_path_string, &installation_path).await {
                 Ok(_) => println!("Zip successfully extracted!"),
@@ -137,7 +173,9 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
                 Ok(_) => println!("Installation path registry key successfully created"),
                 Err(e) => println!("Error while creating installation path registry key: {}", e),
             }
-            main_window.emit("install-complete", &dl_file_path_string).map_err(|e| e.to_string())?;
+            main_window
+                .emit("install-complete", &dl_file_path_string)
+                .map_err(|e| e.to_string())?;
         }
     }
 
@@ -147,17 +185,21 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
 async fn extract_zip(fname: &String, path: &Path) -> Result<(), String> {
     if !path.exists() {
         match std::fs::create_dir(&path) {
-            Ok(_) => {
-                match env::set_current_dir(&path) {
-                    Ok(_) => println!("Successfully changed working directory to {}!", path.display()),
-                    Err(e) => panic!("Error while switching working directory: {}", e),
-                }
+            Ok(_) => match env::set_current_dir(&path) {
+                Ok(_) => println!(
+                    "Successfully changed working directory to {}!",
+                    path.display()
+                ),
+                Err(e) => panic!("Error while switching working directory: {}", e),
             },
-            Err(e) => panic!("{}", e)
+            Err(e) => panic!("{}", e),
         };
     } else {
         match env::set_current_dir(&path) {
-            Ok(_) => println!("Successfully changed working directory to {}!", path.display()),
+            Ok(_) => println!(
+                "Successfully changed working directory to {}!",
+                path.display()
+            ),
             Err(e) => panic!("Error while switching working directory: {}", e),
         }
     }
@@ -258,7 +300,11 @@ fn main() {
                 window.show().unwrap();
             };
         }))
-        .invoke_handler(tauri::generate_handler![get_installation_path, launch_game, download_game])
+        .invoke_handler(tauri::generate_handler![
+            get_installation_path,
+            launch_game,
+            download_game
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri applications");
 }
