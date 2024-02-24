@@ -49,9 +49,9 @@ fn get_installation_path_internal() -> io::Result<String> {
 
     let key = hklm.open_subkey(path)?;
 
-    let install_path: String = key.get_value("InstallDir")?;
+    let install_path_string: String = key.get_value("InstallDir")?;
 
-    Ok(install_path)
+    Ok(install_path_string)
 }
 
 #[tauri::command]
@@ -81,11 +81,12 @@ fn launch_game<R: Runtime>(app: AppHandle<R>) {
 #[cfg(target_os = "windows")]
 async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Result<(), String> {
     let client = Client::new();
+    let temp_dir = std::env::temp_dir();
+
     // make based on OS later
     let url = String::from_str("https://github.com/Limit-Theory-Redux/ltheory/releases/download/latest/ltheory-distro-win32.zip").unwrap();
-    let dl_file_path_string = format!("{}{}", &install_path, "\\Limit Theory Redux.zip");
-    let final_install_path_string = format!("{}{}", &install_path, "\\Limit Theory Redux");
-    let installation_path = Path::new(final_install_path_string.as_str());
+    let dl_file_path = temp_dir.join("Limit Theory Redux.zip");
+    let installation_path = Path::new(&install_path).join("Limit Theory Redux");
 
     let response = client
         .get(&url)
@@ -97,9 +98,9 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
         .content_length()
         .ok_or_else(|| format!("Total length of '{}' not accessible", &url))?;
 
-    let mut file = File::create(&dl_file_path_string)
+    let mut file = File::create(&dl_file_path)
         .await
-        .map_err(|_| format!("Error while creating '{}'", dl_file_path_string))?;
+        .map_err(|_| format!("Error while creating '{}'", dl_file_path.display()))?;
 
     let mut downloaded: u64 = 0;
     let mut stream = response.bytes_stream();
@@ -159,12 +160,12 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
                 .emit("download-extracting", ())
                 .map_err(|e| e.to_string())?;
 
-            match extract_zip(&dl_file_path_string, &installation_path).await {
+            match extract_zip(&dl_file_path, &installation_path).await {
                 Ok(_) => println!("Zip successfully extracted!"),
                 Err(e) => panic!("{}{}", "Error while extracting Zip", e),
             }
 
-            match std::fs::remove_file(&dl_file_path_string) {
+            match std::fs::remove_file(&dl_file_path) {
                 Ok(()) => println!("Downloaded zip deleted"),
                 Err(e) => println!("Error while deleting downloaded zip: {}", e),
             }
@@ -174,7 +175,7 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
                 Err(e) => println!("Error while creating installation path registry key: {}", e),
             }
             main_window
-                .emit("install-complete", &dl_file_path_string)
+                .emit("install-complete", &dl_file_path)
                 .map_err(|e| e.to_string())?;
         }
     }
@@ -182,7 +183,7 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
     Ok(())
 }
 
-async fn extract_zip(fname: &String, path: &Path) -> Result<(), String> {
+async fn extract_zip(zip_path: &Path, path: &Path) -> Result<(), String> {
     if !path.exists() {
         match std::fs::create_dir(&path) {
             Ok(_) => match env::set_current_dir(&path) {
@@ -204,7 +205,7 @@ async fn extract_zip(fname: &String, path: &Path) -> Result<(), String> {
         }
     }
 
-    let file = std::fs::File::open(fname).unwrap();
+    let file = std::fs::File::open(&zip_path).unwrap();
 
     let mut archive = zip::ZipArchive::new(file).unwrap();
 

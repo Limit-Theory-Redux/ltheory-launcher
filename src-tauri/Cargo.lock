@@ -2015,7 +2015,7 @@ dependencies = [
 
 [[package]]
 name = "ltheory_redux_launcher"
-version = "0.3.11"
+version = "0.3.12"
 dependencies = [
  "futures-util",
  "reqwest",
