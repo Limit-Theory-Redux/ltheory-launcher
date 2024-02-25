@@ -102,14 +102,14 @@
     </div>
     <div
       v-if="gameVersion.length > 0"
-      class="w-auto text-white text-center font-semibold font-mono noselect drop-shadow-[0_4px_4px_rgba(0,0,0,0.7)]"
+      class="mt-auto w-auto text-white text-center font-semibold font-mono noselect drop-shadow-[0_4px_4px_rgba(0,0,0,0.7)]"
     >
       Game Version
       <div class="text-blue-400 font-normal">{{ gameVersion }}</div>
     </div>
     <div
       v-else
-      class="w-auto text-white text-center font-semibold font-mono noselect drop-shadow-[0_4px_4px_rgba(0,0,0,0.7)]"
+      class="mt-auto w-auto text-white text-center font-semibold font-mono noselect drop-shadow-[0_4px_4px_rgba(0,0,0,0.7)]"
     >
       Game Version
       <div class="text-red font-normal">None</div>
@@ -128,16 +128,20 @@
       Launcher Version
       <div class="text-blue-400 font-normal">{{ appVersion }}</div>
     </div>
-    <v-select
-      v-show="gameInstalled && gameAvailableStates && !gameDownloadUpdateInstalling"
-      :items="gameAvailableStates"
-      v-model="gameSelectedState"
-      variant="underlined"
-      density="compact"
-      focused
-      class="absolute bottom-4 right-4 font-mono text-white z-10"
-      hide-details
-    ></v-select>
+    <div class="mb-auto">
+      <v-select
+        v-show="
+          gameInstalled && gameAvailableStates && !gameDownloadUpdateInstalling
+        "
+        :items="gameAvailableStates"
+        v-model="gameSelectedState"
+        variant="underlined"
+        density="compact"
+        focused
+        class="absolute bottom-4 right-4 font-mono text-white z-10 w-36"
+        hide-details
+      ></v-select>
+    </div>
     <div class="w-full" v-if="gameDownloadUpdateInstalling">
       <p
         class="text-white text-right font-light text-sm mr-2 noselect"
@@ -146,7 +150,8 @@
         {{ gameDownloadUpdateSpeed }} MB/s
       </p>
       <p class="text-white text-right font-light text-sm mr-2 noselect" v-else>
-        Extracting Files ({{ gameDownloadUpdateExtractingFilesRemaining }} left)
+        Extracting Files ({{ gameDownloadUpdateExtractingFilesRemaining }}
+        left)
       </p>
       <v-progress-linear
         v-if="!gameDownloadUpdateExtracting"
@@ -192,7 +197,7 @@ const gameVersion = ref("");
 const gamePath = ref("");
 const gameInstalled = ref(true);
 const gameAvailableStates = ref();
-const gameSelectedState = ref("LTheoryRedux")
+const gameSelectedState = ref("LTheoryRedux");
 const gameDownloadUpdateProgress = ref(0);
 const gameDownloadUpdateSpeed = ref(0);
 const gameDownloadUpdateInstalling = ref(false);
@@ -245,13 +250,13 @@ const unlistenExtractingFilesRemaining = await listen(
   "extracting-files",
   (event: TauriEmitEvent) => {
     gameDownloadUpdateExtractingFilesRemaining.value = event.payload;
-    console.log("Files Extracting.");
+    console.log("Files remaining:", event.payload);
   }
 );
 
 const unlistenCompleted = await listen("install-complete", (event) => {
-  gameDownloadUpdateExtracting.value = false;
   gameDownloadUpdateInstalling.value = false;
+  gameDownloadUpdateExtracting.value = false;
   console.log("Install completed");
   getGameInstallationPath();
   checkConfigExists();
@@ -400,7 +405,7 @@ async function getAvailableStates() {
       if (entry.children) {
         for (const child of entry.children) {
           if (child.name) {
-            let childNameWithoutExtension = child.name.replace('.lua', '')
+            let childNameWithoutExtension = child.name.replace(".lua", "");
             states.push(childNameWithoutExtension);
           }
         }
@@ -462,3 +467,13 @@ async function getExecuteCommandForOs() {
   return { shell, start };
 }
 </script>
+
+<style>
+.v-field__outline {
+  display: none !important;
+}
+.v-select__selection {
+    width: 100%;
+    justify-content: right;
+}
+</style>
