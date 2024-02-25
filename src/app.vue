@@ -34,7 +34,7 @@
       class="absolute inset-0 w-full h-full object-cover z-0"
     />
     <v-switch
-      class="absolute bottom-0 left-4 h-14 z-10 text-white"
+      class="absolute bottom-0 left-4 h-14 z-10 text-white font-mono"
       v-model="dynamicBg"
       color="indigo"
       label="Play Video"

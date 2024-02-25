@@ -7,11 +7,11 @@
     />
     <img
       src="/assets/LTR_Title.svg"
-      class="mb-4 w-96 drop-shadow-[0_4px_4px_rgba(0,0,0,0.7)] noselect"
+      class="mb-4 w-[22rem] drop-shadow-[0_4px_4px_rgba(0,0,0,0.7)] noselect"
       draggable="false"
     />
     <div
-      class="flex flex-col mb-6 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)] text-white font-semibold"
+      class="flex flex-col mb-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)] text-white font-semibold"
     >
       <a
         href="https://github.com/Limit-Theory-Redux/ltheory"
@@ -46,7 +46,7 @@
     >
     <v-btn
       v-else-if="!gameInstalled && gameDownloadUpdateInstalling"
-      class="mb-4 w-48"
+      class="mb-2 w-48"
       size="large"
       @click="installGame()"
       :disabled="gameDownloadUpdateInstalling"
@@ -54,7 +54,7 @@
     >
     <v-btn
       v-else
-      class="mb-4 w-48"
+      class="mb-2 w-48"
       size="large"
       :disabled="!gameInstalled || gameDownloadUpdateInstalling"
       @click="launchGame()"
@@ -64,7 +64,7 @@
       v-if="
         gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling
       "
-      class="mb-4 w-48"
+      class="mb-2 w-48"
       size="large"
       :disabled="!gameUpdateAvailable || gameDownloadUpdateInstalling"
       @click="installGameUpdate()"
@@ -80,7 +80,7 @@
     >
     <v-btn
       v-else-if="gameInstalled && gameUpdateAvailable"
-      class="mb-4 w-48"
+      class="mb-2 w-48"
       size="large"
       :disabled="!gameInstalled || !configFound"
       @click="openConfig()"
@@ -88,20 +88,12 @@
     >
     <v-btn
       v-else-if="gameInstalled && configFound"
-      class="mb-auto w-48"
+      class="mb-2 w-48"
       size="large"
       :disabled="!gameInstalled || !configFound"
       @click="openConfig()"
       >Config</v-btn
     >
-    <div
-      v-if="
-        gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling
-      "
-      class="mb-auto text-green-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
-    >
-      Update Available
-    </div>
     <div
       v-else-if="gameDownloadUpdateInstalling"
       class="mb-auto text-blue-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
@@ -123,14 +115,39 @@
       <div class="text-red font-normal">None</div>
     </div>
     <div
-      class="mb-12 w-auto text-white text-center font-semibold font-mono noselect drop-shadow-[0_4px_4px_rgba(0,0,0,0.7)]"
+      v-if="
+        gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling
+      "
+      class="flex-row text-green-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
+    >
+      Update Available
+    </div>
+    <div
+      class="mb-auto w-auto text-white text-center font-semibold font-mono noselect drop-shadow-[0_4px_4px_rgba(0,0,0,0.7)]"
     >
       Launcher Version
       <div class="text-blue-400 font-normal">{{ appVersion }}</div>
     </div>
+    <v-select
+      v-show="gameInstalled && gameAvailableStates && !gameDownloadUpdateInstalling"
+      :items="gameAvailableStates"
+      v-model="gameSelectedState"
+      variant="underlined"
+      density="compact"
+      focused
+      class="absolute bottom-4 right-4 font-mono text-white z-10"
+      hide-details
+    ></v-select>
     <div class="w-full" v-if="gameDownloadUpdateInstalling">
-      <p class="text-white text-right font-light text-sm mr-2 noselect" v-if="!gameDownloadUpdateExtracting">{{ gameDownloadUpdateSpeed }} MB/s</p>
-      <p class="text-white text-right font-light text-sm mr-2 noselect" v-else>Extracting Files</p>
+      <p
+        class="text-white text-right font-light text-sm mr-2 noselect"
+        v-if="!gameDownloadUpdateExtracting"
+      >
+        {{ gameDownloadUpdateSpeed }} MB/s
+      </p>
+      <p class="text-white text-right font-light text-sm mr-2 noselect" v-else>
+        Extracting Files ({{ gameDownloadUpdateExtractingFilesRemaining }} left)
+      </p>
       <v-progress-linear
         v-if="!gameDownloadUpdateExtracting"
         class="animate-slide-in-bottom mb-0"
@@ -156,7 +173,12 @@
 <script lang="ts" setup>
 import { getVersion } from "@tauri-apps/api/app";
 import { dirname, configDir, homeDir } from "@tauri-apps/api/path";
-import { exists, BaseDirectory, readTextFile } from "@tauri-apps/api/fs";
+import {
+  exists,
+  BaseDirectory,
+  readTextFile,
+  readDir,
+} from "@tauri-apps/api/fs";
 import { type } from "@tauri-apps/api/os";
 import { Command } from "@tauri-apps/api/shell";
 import { open, confirm, message } from "@tauri-apps/api/dialog";
@@ -168,21 +190,20 @@ import type { releaseInfo } from "../types/index.ts";
 const appVersion = await getVersion();
 const gameVersion = ref("");
 const gamePath = ref("");
-const gameInstalled = ref(false);
+const gameInstalled = ref(true);
+const gameAvailableStates = ref();
+const gameSelectedState = ref("LTheoryRedux")
 const gameDownloadUpdateProgress = ref(0);
 const gameDownloadUpdateSpeed = ref(0);
 const gameDownloadUpdateInstalling = ref(false);
 const gameDownloadUpdateExtracting = ref(false);
+const gameDownloadUpdateExtractingFilesRemaining = ref(0);
 const gameUpdateAvailable = ref(false);
 const configFound = ref(false);
 const configUrl = "LTheoryRedux\\LTheoryRedux\\data\\user.ini";
 
 interface TauriEmitEvent {
   payload: number;
-}
-
-interface InstallCompleteEvent {
-  payload: string;
 }
 
 interface LauncherUpdateStatusEvent {
@@ -206,7 +227,7 @@ const unlistenSpeed = await listen(
   "download-speed",
   (event: TauriEmitEvent) => {
     // set var and update it to MB/s and floor to 2 digits
-    let value = Math.floor(event.payload / 1024 * 10) / 10;
+    let value = Math.floor((event.payload / 1024) * 10) / 10;
     gameDownloadUpdateSpeed.value = value;
     console.log("Download speed: " + value);
   }
@@ -214,22 +235,27 @@ const unlistenSpeed = await listen(
 
 const unlistenExtracting = await listen(
   "download-extracting",
-  (event) => {
+  (event: TauriEmitEvent) => {
     gameDownloadUpdateExtracting.value = true;
     console.log("Files Extracting.");
   }
 );
 
-const unlistenCompleted = await listen(
-  "install-complete",
-  (event: InstallCompleteEvent) => {
-    gameDownloadUpdateExtracting.value = false;
-    gameDownloadUpdateInstalling.value = false;
-    console.log("Install completed: " + event.payload);
-    getGameInstallationPath();
-    checkConfigExists();
+const unlistenExtractingFilesRemaining = await listen(
+  "extracting-files",
+  (event: TauriEmitEvent) => {
+    gameDownloadUpdateExtractingFilesRemaining.value = event.payload;
+    console.log("Files Extracting.");
   }
 );
+
+const unlistenCompleted = await listen("install-complete", (event) => {
+  gameDownloadUpdateExtracting.value = false;
+  gameDownloadUpdateInstalling.value = false;
+  console.log("Install completed");
+  getGameInstallationPath();
+  checkConfigExists();
+});
 
 listen("tauri://update-status", (event: LauncherUpdateStatusEvent) => {
   console.log("New status: ", event);
@@ -328,6 +354,7 @@ async function checkIfExecutableExists() {
       gameInstalled.value = true;
       console.log("Game binary found at: " + binaryFilePath);
       await getGameVersion();
+      await getAvailableStates();
     }
   } catch (err) {
     console.error(err);
@@ -353,6 +380,39 @@ async function getGameVersion() {
   } catch (err) {
     gameVersion.value = "";
     console.error("Error while reading game version from Version.lua:", err);
+  }
+}
+
+async function getAvailableStates() {
+  try {
+    const stateFilePath = `${gamePath.value}\\script\\States\\App`;
+
+    const data = await readDir(stateFilePath, {
+      dir: BaseDirectory.Home,
+      recursive: true,
+    });
+
+    console.log(data);
+
+    let states = ["LTheoryRedux"];
+
+    for (const entry of data) {
+      if (entry.children) {
+        for (const child of entry.children) {
+          if (child.name) {
+            let childNameWithoutExtension = child.name.replace('.lua', '')
+            states.push(childNameWithoutExtension);
+          }
+        }
+      }
+    }
+
+    console.log("Available States:", states);
+    gameAvailableStates.value = states;
+  } catch (err) {
+    gameAvailableStates.value = null;
+
+    console.error("Error while reading available game states:", err);
   }
 }
 
@@ -389,7 +449,7 @@ async function installGameUpdate() {
 
 async function launchGame() {
   try {
-    invoke("launch_game");
+    invoke("launch_game", { state: gameSelectedState.value });
   } catch (err) {
     console.error("Error while launching the game.");
   }
