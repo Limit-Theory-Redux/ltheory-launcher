@@ -56,7 +56,7 @@ fn get_installation_path_internal() -> io::Result<String> {
 
 #[tauri::command]
 #[cfg(target_os = "windows")]
-fn launch_game<R: Runtime>(app: AppHandle<R>) {
+fn launch_game<R: Runtime>(app: AppHandle<R>, state: &str) {
     let mut binding = Command::new("cmd");
 
     let binary_path = r"bin\\lt64.exe";
@@ -67,7 +67,7 @@ fn launch_game<R: Runtime>(app: AppHandle<R>) {
     };
 
     let _game = binding
-        .args(&["/C", "start", &binary_path])
+        .args(&["/C", "start", &binary_path, &state])
         .creation_flags(winapi::um::winbase::DETACHED_PROCESS) // ONLY WINDOWS;
         .current_dir(&dir)
         .spawn()
@@ -160,7 +160,7 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
                 .emit("download-extracting", ())
                 .map_err(|e| e.to_string())?;
 
-            match extract_zip(&dl_file_path, &installation_path).await {
+            match extract_zip(&dl_file_path, &installation_path, &main_window).await {
                 Ok(_) => println!("Zip successfully extracted!"),
                 Err(e) => panic!("{}{}", "Error while extracting Zip", e),
             }
@@ -174,8 +174,9 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
                 Ok(_) => println!("Installation path registry key successfully created"),
                 Err(e) => println!("Error while creating installation path registry key: {}", e),
             }
+
             main_window
-                .emit("install-complete", &dl_file_path)
+                .emit("install-complete", ())
                 .map_err(|e| e.to_string())?;
         }
     }
@@ -183,7 +184,7 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
     Ok(())
 }
 
-async fn extract_zip(zip_path: &Path, path: &Path) -> Result<(), String> {
+async fn extract_zip<R: Runtime>(zip_path: &Path, path: &Path, main_window: &tauri::Window<R>) -> Result<(), String> {
     if !path.exists() {
         match std::fs::create_dir(&path) {
             Ok(_) => match env::set_current_dir(&path) {
@@ -208,6 +209,7 @@ async fn extract_zip(zip_path: &Path, path: &Path) -> Result<(), String> {
     let file = std::fs::File::open(&zip_path).unwrap();
 
     let mut archive = zip::ZipArchive::new(file).unwrap();
+    let archive_len = &archive.len();
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).unwrap();
@@ -242,15 +244,9 @@ async fn extract_zip(zip_path: &Path, path: &Path) -> Result<(), String> {
             io::copy(&mut file, &mut outfile).unwrap();
         }
 
-        // Get and Set permissions
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-
-            if let Some(mode) = file.unix_mode() {
-                fs::set_permissions(&outpath, fs::Permissions::from_mode(mode)).unwrap();
-            }
-        }
+        main_window
+            .emit("extracting-files", archive_len - i)
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(())
