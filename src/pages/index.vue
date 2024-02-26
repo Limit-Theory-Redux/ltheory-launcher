@@ -215,6 +215,15 @@ interface LauncherUpdateStatusEvent {
   payload: LauncherUpdateStatusEventPayload;
 }
 
+interface LauncherUpdateProgressEvent {
+  payload: LauncherUpdateProgressEventPayload;
+}
+
+interface LauncherUpdateProgressEventPayload {
+  chunkLength: number;
+  contentLength: number;
+}
+
 interface LauncherUpdateStatusEventPayload {
   status: string;
   error: string;
@@ -268,6 +277,32 @@ listen("tauri://update-status", (event: LauncherUpdateStatusEvent) => {
     gameDownloadUpdateInstalling.value = true;
   }
 });
+
+let downloadedChunkLength = 0;
+let lastTime = Date.now();
+let lastDownloaded = 0;
+
+listen(
+  "tauri://update-download-progress",
+  (event: LauncherUpdateProgressEvent) => {
+    downloadedChunkLength += event.payload.chunkLength;
+    let progress = (downloadedChunkLength / event.payload.contentLength) * 100;
+
+    let currentTime = Date.now();
+    let elapsedTime = (currentTime - lastTime) / 1000;
+
+    if (elapsedTime >= 1) {
+      let recentDownloaded = downloadedChunkLength - lastDownloaded;
+      let downloadSpeed = recentDownloaded / 1024 / 1024 / elapsedTime;
+
+      gameDownloadUpdateProgress.value = progress;
+      gameDownloadUpdateSpeed.value = parseFloat(downloadSpeed.toFixed(2));
+
+      lastTime = currentTime;
+      lastDownloaded = downloadedChunkLength;
+    }
+  }
+);
 
 // run on page load
 await getGameInstallationPath();
@@ -473,7 +508,7 @@ async function getExecuteCommandForOs() {
   display: none !important;
 }
 .v-select__selection {
-    width: 100%;
-    justify-content: right;
+  width: 100%;
+  justify-content: right;
 }
 </style>
