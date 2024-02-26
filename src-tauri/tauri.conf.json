@@ -21,32 +21,10 @@
         "all": true
       },
       "shell": {
-        "all": true,
-        "execute": true,
+        "all": false,
+        "execute": false,
         "sidecar": false,
-        "open": true,
-        "scope": [
-          {
-            "name": "sh",
-            "cmd": "sh",
-            "args": [
-              "-c",
-              {
-                "validator": "\\S+"
-              }
-            ]
-          },
-          {
-            "name": "cmd",
-            "cmd": "cmd",
-            "args": [
-              "/C",
-              {
-                "validator": "\\S+"
-              }
-            ]
-          }
-        ]
+        "open": ".*LTheoryRedux[\\\\\\/]data[\\\\\\/]user\\.ini$"
       },
       "fs": {
         "all": true,

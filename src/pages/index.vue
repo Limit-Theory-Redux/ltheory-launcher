@@ -185,7 +185,7 @@ import {
   readDir,
 } from "@tauri-apps/api/fs";
 import { type } from "@tauri-apps/api/os";
-import { Command } from "@tauri-apps/api/shell";
+import { open as shellOpen } from "@tauri-apps/api/shell";
 import { open, confirm, message } from "@tauri-apps/api/dialog";
 import { invoke } from "@tauri-apps/api/tauri";
 import { emit, listen } from "@tauri-apps/api/event";
@@ -356,9 +356,8 @@ async function openConfig() {
     var path = configDirPath + configUrl;
 
     if (await exists(path, { dir: BaseDirectory.Data })) {
-      let command = await getExecuteCommandForOs();
-      let output = new Command(command.shell, [command.start, path]).execute();
-      console.log(output);
+      console.log(path)
+      await shellOpen(path);
     } else {
       console.log("Config does not exist");
     }
@@ -493,13 +492,6 @@ async function launchGame() {
   } catch (err) {
     console.error("Error while launching the game.");
   }
-}
-
-async function getExecuteCommandForOs() {
-  const osType = await type();
-  let shell = osType == "Windows_NT" ? "cmd" : "sh";
-  let start = osType == "Windows_NT" ? "/C" : "xdg-open";
-  return { shell, start };
 }
 </script>
 
