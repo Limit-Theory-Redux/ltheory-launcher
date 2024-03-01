@@ -1,6 +1,6 @@
 [package]
 name = "ltheory_redux_launcher"
-version = "0.4.2"
+version = "0.4.3"
 description = ""
 authors = ["IllustrisJack"]
 repository = "https://github.com/Limit-Theory-Redux/ltheory-launcher"

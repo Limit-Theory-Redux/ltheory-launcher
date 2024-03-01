@@ -195,7 +195,7 @@ import type { releaseInfo } from "../types/index.ts";
 const appVersion = await getVersion();
 const gameVersion = ref("");
 const gamePath = ref("");
-const gameInstalled = ref(true);
+const gameInstalled = ref(false);
 const gameAvailableStates = ref();
 const gameSelectedState = ref("LTheoryRedux");
 const gameDownloadUpdateProgress = ref(0);
