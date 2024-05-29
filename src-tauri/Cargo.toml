@@ -1,6 +1,6 @@
 [package]
 name = "ltheory_redux_launcher"
-version = "0.4.5"
+version = "0.4.6"
 description = ""
 authors = ["IllustrisJack"]
 repository = "https://github.com/Limit-Theory-Redux/ltheory-launcher"
@@ -34,14 +34,14 @@ tauri = { version = "1.5.2", features = [
     "process-command-api",
 ] }
 # Plugins
-tauri-plugin-single-instance = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
-tauri-plugin-positioner = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
+tauri-plugin-single-instance = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
+tauri-plugin-positioner = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
 winapi = "0.3.9"
 winreg = "0.52"
 window-shadows = "0.2.2"
 reqwest = { version = "0.12.3", features = ["stream"] }
 futures-util = "0.3.14"
-zip = "0.6.6"
+zip = "2.1.1"
 tokio = "1.34"
 
 [features]
