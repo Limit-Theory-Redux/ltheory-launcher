@@ -59,7 +59,7 @@ fn get_installation_path_internal() -> io::Result<String> {
 fn launch_game<R: Runtime>(app: AppHandle<R>, state: &str) {
     let mut binding = Command::new("cmd");
 
-    let binary_path = r"bin\\lt64.exe";
+    let binary_path = r"bin\\ltr.exe";
 
     let dir = match get_installation_path_internal() {
         Ok(install_path) => install_path,
@@ -84,8 +84,8 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
     let temp_dir = std::env::temp_dir();
 
     // make based on OS later
-    let url = String::from_str("https://github.com/Limit-Theory-Redux/ltheory/releases/download/latest/ltheory-distro-win32.zip").unwrap();
-    let dl_file_path = temp_dir.join("Limit Theory Redux.zip");
+    let url = String::from_str("https://github.com/Limit-Theory-Redux/ltheory/releases/download/latest/ltheory-windows.zip").unwrap();
+    let dl_file_path = temp_dir.join("ltheory-windows.zip");
     let installation_path = Path::new(&install_path).join("Limit Theory Redux");
 
     let response = client
@@ -184,7 +184,11 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
     Ok(())
 }
 
-async fn extract_zip<R: Runtime>(zip_path: &Path, path: &Path, main_window: &tauri::Window<R>) -> Result<(), String> {
+async fn extract_zip<R: Runtime>(
+    zip_path: &Path,
+    path: &Path,
+    main_window: &tauri::Window<R>,
+) -> Result<(), String> {
     if !path.exists() {
         match std::fs::create_dir(&path) {
             Ok(_) => match env::set_current_dir(&path) {
