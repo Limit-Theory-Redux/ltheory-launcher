@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "LTheoryReduxLauncher",
-    "version": "0.4.4"
+    "version": "0.4.5"
   },
   "tauri": {
     "allowlist": {
@@ -24,7 +24,7 @@
         "all": false,
         "execute": false,
         "sidecar": false,
-        "open": ".*LTheoryRedux[\\\\\\/]data[\\\\\\/]user\\.ini$"
+        "open": "^((.*LTheoryRedux[\\\\\\/]data[\\\\\\/]user\\.ini$)|(https?://\\w+))"
       },
       "fs": {
         "all": true,
