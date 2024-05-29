@@ -356,7 +356,7 @@ async function openConfig() {
     var path = configDirPath + configUrl;
 
     if (await exists(path, { dir: BaseDirectory.Data })) {
-      console.log(path)
+      console.log(path);
       await shellOpen(path);
     } else {
       console.log("Config does not exist");
@@ -387,7 +387,7 @@ async function getGameInstallationPath() {
 
 async function checkIfExecutableExists() {
   try {
-    const binaryFilePath = `${gamePath.value}\\bin\\lt64.exe`;
+    const binaryFilePath = `${gamePath.value}\\bin\\ltr.exe`;
 
     if (await exists(binaryFilePath, { dir: BaseDirectory.Home })) {
       gameInstalled.value = true;
