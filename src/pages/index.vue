@@ -138,7 +138,7 @@
         variant="underlined"
         density="compact"
         focused
-        class="absolute bottom-4 right-4 font-mono text-white z-10 w-36"
+        class="absolute bottom-4 right-4 font-mono text-white z-10 w-72"
         hide-details
       ></v-select>
     </div>
@@ -438,7 +438,7 @@ async function getAvailableStates() {
     for (const entry of data) {
       if (entry.children) {
         for (const child of entry.children) {
-          if (child.name) {
+          if (child.name && child.name.includes(".lua")) {
             let childNameWithoutExtension = child.name.replace(".lua", "");
             states.push(childNameWithoutExtension);
           }
