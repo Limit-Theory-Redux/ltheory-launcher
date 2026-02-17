@@ -3,6 +3,7 @@
 ---
 
 # Limit Theory Redux Launcher
+
 A simple Limit Theory Redux launcher written with use of the Tauri toolkit (Rust, Nuxt 3/Vue.js) currently targeted at Windows only.
 
 # Screenshots
@@ -21,14 +22,18 @@ A simple Limit Theory Redux launcher written with use of the Tauri toolkit (Rust
 </p>
 
 # Development
+
 ## Prerequisites:
+
 - [Rust](https://www.rust-lang.org/)
 - [Tauri](https://tauri.app/)
-- [pnpm](https://pnpm.io/)
+- [bun](https://bun.com/)
 
 ## Developing the app
-`pnpm install`
-`pnpm tauri dev`
+
+`bun install`
+`bun run tauri dev`
 
 ## Building the app
-`pnpm tauri build`
+
+`bun run tauri build`
