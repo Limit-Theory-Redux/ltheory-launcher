@@ -57,7 +57,6 @@
       },
 "nsis": {
         "installMode": "currentUser",
-        "template": "./installer/installer.nsi",
         "headerImage": "./assets/installer_header.bmp",
         "languages": [
           "English"
