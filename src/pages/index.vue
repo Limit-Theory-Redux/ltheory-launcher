@@ -177,26 +177,24 @@
 
 <script lang="ts" setup>
 import { getVersion } from "@tauri-apps/api/app";
-import { dirname, configDir, homeDir } from "@tauri-apps/api/path";
-import {
-  exists,
-  BaseDirectory,
-  readTextFile,
-  readDir,
-} from "@tauri-apps/api/fs";
-import { type } from "@tauri-apps/api/os";
-import { open as shellOpen } from "@tauri-apps/api/shell";
-import { open, confirm, message } from "@tauri-apps/api/dialog";
-import { invoke } from "@tauri-apps/api/tauri";
-import { emit, listen } from "@tauri-apps/api/event";
+import { homeDir } from "@tauri-apps/api/path";
+import { open, confirm, message } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 import type { releaseInfo } from "../types/index.ts";
+
+interface GameInfo {
+  installed: boolean;
+  version: string | null;
+  states: string[];
+}
 
 const appVersion = await getVersion();
 const gameVersion = ref("");
 const gamePath = ref("");
 const gameInstalled = ref(false);
-const gameAvailableStates = ref();
+const gameAvailableStates = ref<string[]>(["LTheoryRedux"]);
 const gameSelectedState = ref("LTheoryRedux");
 const gameDownloadUpdateProgress = ref(0);
 const gameDownloadUpdateSpeed = ref(0);
@@ -205,28 +203,9 @@ const gameDownloadUpdateExtracting = ref(false);
 const gameDownloadUpdateExtractingFilesRemaining = ref(0);
 const gameUpdateAvailable = ref(false);
 const configFound = ref(false);
-const configUrl = "LTheoryRedux\\LTheoryRedux\\data\\user.ini";
 
 interface TauriEmitEvent {
   payload: number;
-}
-
-interface LauncherUpdateStatusEvent {
-  payload: LauncherUpdateStatusEventPayload;
-}
-
-interface LauncherUpdateProgressEvent {
-  payload: LauncherUpdateProgressEventPayload;
-}
-
-interface LauncherUpdateProgressEventPayload {
-  chunkLength: number;
-  contentLength: number;
-}
-
-interface LauncherUpdateStatusEventPayload {
-  status: string;
-  error: string;
 }
 
 const unlistenProgress = await listen(
@@ -240,7 +219,6 @@ const unlistenProgress = await listen(
 const unlistenSpeed = await listen(
   "download-speed",
   (event: TauriEmitEvent) => {
-    // set var and update it to MB/s and floor to 2 digits
     let value = Math.floor((event.payload / 1024) * 10) / 10;
     gameDownloadUpdateSpeed.value = value;
     console.log("Download speed: " + value);
@@ -267,100 +245,63 @@ const unlistenCompleted = await listen("install-complete", (event) => {
   gameDownloadUpdateInstalling.value = false;
   gameDownloadUpdateExtracting.value = false;
   console.log("Install completed");
-  getGameInstallationPath();
+  loadGameData();
   checkConfigExists();
 });
 
-listen("tauri://update-status", (event: LauncherUpdateStatusEvent) => {
-  console.log("New status: ", event);
-  if (event.payload.status == "PENDING") {
-    gameDownloadUpdateInstalling.value = true;
-  }
-});
-
-let downloadedChunkLength = 0;
-let lastTime = Date.now();
-let lastDownloaded = 0;
-
-listen(
-  "tauri://update-download-progress",
-  (event: LauncherUpdateProgressEvent) => {
-    downloadedChunkLength += event.payload.chunkLength;
-    let progress = (downloadedChunkLength / event.payload.contentLength) * 100;
-
-    let currentTime = Date.now();
-    let elapsedTime = (currentTime - lastTime) / 1000;
-
-    if (elapsedTime >= 1) {
-      let recentDownloaded = downloadedChunkLength - lastDownloaded;
-      let downloadSpeed = recentDownloaded / 1024 / 1024 / elapsedTime;
-
-      gameDownloadUpdateProgress.value = progress;
-      gameDownloadUpdateSpeed.value = parseFloat(downloadSpeed.toFixed(2));
-
-      lastTime = currentTime;
-      lastDownloaded = downloadedChunkLength;
-    }
-  }
-);
-
 // run on page load
-await getGameInstallationPath();
+await loadGameData();
 checkConfigExists();
 
-// TODO: filesystem functions like these could entirely moved to rust, just for application safety
-async function checkConfigExists() {
+async function loadGameData() {
   try {
-    var configDirPath = await configDir();
-    var path = configDirPath + configUrl;
+    const info: GameInfo = await invoke("get_game_info");
+    gameInstalled.value = info.installed;
+    gameVersion.value = info.version || "";
+    gameAvailableStates.value = info.states;
 
-    if (await exists(path, { dir: BaseDirectory.Data })) {
-      configFound.value = true;
-    } else {
-      configFound.value = false;
+    if (info.installed && info.version) {
+      await checkUpdateAvailable();
+    }
+
+    // Also get installation path for update functionality
+    try {
+      gamePath.value = await invoke("get_installation_path");
+    } catch {
+      // Path not found, game not installed
     }
   } catch (err) {
+    console.error("Error loading game data:", err);
+  }
+}
+
+async function checkConfigExists() {
+  try {
+    configFound.value = await invoke("check_config_exists");
+  } catch (err) {
     console.error(err);
+    configFound.value = false;
   }
 }
 
 async function checkUpdateAvailable() {
-  // Todo change to actual repo & use gh app auth
   const response = await fetch(
     "https://api.github.com/repos/Limit-Theory-Redux/ltheory/releases/tags/latest"
   );
   const info: releaseInfo = await response.json();
 
   if (info.name && info.name.indexOf(gameVersion.value) == -1) {
-    let str =
-      "Update found. Installed version: " +
-      gameVersion.value +
-      " | Latest version: " +
-      info.name;
-    console.log(str);
+    console.log("Update found. Installed:", gameVersion.value, "| Latest:", info.name);
     gameUpdateAvailable.value = true;
   } else {
-    let str =
-      "No update found. Installed version: " +
-      gameVersion.value +
-      " | Latest version: " +
-      info.name;
-    console.log(str);
+    console.log("No update found. Installed:", gameVersion.value, "| Latest:", info.name);
     gameUpdateAvailable.value = false;
   }
 }
 
 async function openConfig() {
   try {
-    var configDirPath = await configDir();
-    var path = configDirPath + configUrl;
-
-    if (await exists(path, { dir: BaseDirectory.Data })) {
-      console.log(path);
-      await shellOpen(path);
-    } else {
-      console.log("Config does not exist");
-    }
+    await invoke("open_config");
   } catch (err) {
     console.error(err);
   }
@@ -371,88 +312,6 @@ async function createConfig() {
     "This feature was not implemented yet. The game will automatically generate a config once you start & modify the settings or exit it using the menu",
     "Not implemented"
   );
-}
-
-async function getGameInstallationPath() {
-  try {
-    let installationPath: string = await invoke("get_installation_path");
-    console.log("Installation Path: " + installationPath);
-
-    gamePath.value = installationPath;
-    await checkIfExecutableExists();
-  } catch (err) {
-    console.error("Installation path not found in registry with error: " + err);
-  }
-}
-
-async function checkIfExecutableExists() {
-  try {
-    const binaryFilePath = `${gamePath.value}\\bin\\ltr.exe`;
-
-    if (await exists(binaryFilePath, { dir: BaseDirectory.Home })) {
-      gameInstalled.value = true;
-      console.log("Game binary found at: " + binaryFilePath);
-      await getGameVersion();
-      await getAvailableStates();
-    }
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-async function getGameVersion() {
-  try {
-    const versionFilePath = `${gamePath.value}\\script\\Config\\Version.lua`;
-
-    const data = await readTextFile(versionFilePath, {
-      dir: BaseDirectory.Home,
-    });
-
-    const match = data.match(/Config\.gameVersion\s*=\s*"([^"]+)"/);
-    if (match && match[1]) {
-      console.log("Found version: " + match[1]);
-      gameVersion.value = match[1];
-      await checkUpdateAvailable();
-    } else {
-      throw new Error("Version could not be found");
-    }
-  } catch (err) {
-    gameVersion.value = "";
-    console.error("Error while reading game version from Version.lua:", err);
-  }
-}
-
-async function getAvailableStates() {
-  try {
-    const stateFilePath = `${gamePath.value}\\script\\States\\App`;
-
-    const data = await readDir(stateFilePath, {
-      dir: BaseDirectory.Home,
-      recursive: true,
-    });
-
-    console.log(data);
-
-    let states = ["LTheoryRedux"];
-
-    for (const entry of data) {
-      if (entry.children) {
-        for (const child of entry.children) {
-          if (child.name && child.name.includes(".lua")) {
-            let childNameWithoutExtension = child.name.replace(".lua", "");
-            states.push(childNameWithoutExtension);
-          }
-        }
-      }
-    }
-
-    console.log("Available States:", states);
-    gameAvailableStates.value = states;
-  } catch (err) {
-    gameAvailableStates.value = null;
-
-    console.error("Error while reading available game states:", err);
-  }
 }
 
 async function installGame() {
@@ -479,9 +338,9 @@ async function installGame() {
 
 async function installGameUpdate() {
   if (gamePath.value.length > 0) {
-    gamePath.value = gamePath.value.replace("\\Limit Theory Redux", "");
-    console.log(gamePath.value);
-    invoke("download_game", { installPath: gamePath.value });
+    let path = gamePath.value.replace("\\Limit Theory Redux", "");
+    console.log(path);
+    invoke("download_game", { installPath: path });
     gameDownloadUpdateInstalling.value = true;
   }
 }

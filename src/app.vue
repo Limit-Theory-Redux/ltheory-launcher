@@ -49,28 +49,19 @@
 
 <script lang="ts" setup>
 import { getVersion } from "@tauri-apps/api/app";
-import { appWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import useBlockContextMenu from "./composables/useBlockContextMenu";
 import useBlockFileDrop from "./composables/useBlockFileDrop";
-import {
-  checkUpdate,
-  installUpdate,
-  onUpdaterEvent,
-} from "@tauri-apps/api/updater";
-import { relaunch } from "@tauri-apps/api/process";
-import { confirm } from "@tauri-apps/api/dialog";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { confirm } from "@tauri-apps/plugin-dialog";
 
+const appWindow = getCurrentWindow();
 useBlockFileDrop();
 useBlockContextMenu();
 const dynamicBg = ref(true);
 const windowMaximized = ref(false);
 
-const unlisten = await onUpdaterEvent(({ error, status }) => {
-  // This will log all updater events, including status updates and errors.
-  console.log("Updater event", error, status);
-});
-
-// on page load
 getBgSettingFromStorage();
 getMaximizedFromStorage();
 
@@ -125,17 +116,17 @@ function onLoadVideo() {
 async function checkForUpdate() {
   try {
     const version = await getVersion();
-    const { shouldUpdate, manifest } = await checkUpdate();
-    if (version && shouldUpdate && manifest) {
+    const update = await check();
+    if (update) {
       const confirmed = await confirm(
-        "An update for the Launcher is available (" + version + " > " + manifest.version + ")",
+        "An update for the Launcher is available (" + version + " > " + update.version + ")",
         { title: "Update Available", type: "info", okLabel: "Download", cancelLabel: "Cancel" }
       );
 
       if (confirmed) {
-        console.log(`Installing update ${manifest?.version}, ${manifest?.date}, ${manifest?.body}`);
+        console.log(`Installing update ${update.version}, ${update.date}, ${update.body}`);
 
-        await installUpdate();
+        await update.downloadAndInstall();
 
         await relaunch();
       }

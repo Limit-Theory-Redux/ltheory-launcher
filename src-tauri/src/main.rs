@@ -9,9 +9,9 @@ use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
-use tauri::{AppHandle, Manager, Runtime, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WindowEvent};
+use tauri_plugin_opener::OpenerExt;
 use tokio::{fs::File, io::AsyncWriteExt};
-use window_shadows::set_shadow;
 use winreg::enums::*;
 use winreg::RegKey;
 
@@ -54,9 +54,140 @@ fn get_installation_path_internal() -> io::Result<String> {
     Ok(install_path_string)
 }
 
+#[derive(serde::Serialize)]
+struct GameInfo {
+    installed: bool,
+    version: Option<String>,
+    states: Vec<String>,
+}
+
 #[tauri::command]
 #[cfg(target_os = "windows")]
-fn launch_game<R: Runtime>(app: AppHandle<R>, state: &str) {
+async fn get_game_info() -> Result<GameInfo, String> {
+    let install_path = match get_installation_path_internal() {
+        Ok(path) => path,
+        Err(_) => return Ok(GameInfo {
+            installed: false,
+            version: None,
+            states: vec!["LTheoryRedux".to_string()],
+        }),
+    };
+
+    let binary_path = Path::new(&install_path).join("bin").join("ltr.exe");
+    
+    if !binary_path.exists() {
+        return Ok(GameInfo {
+            installed: false,
+            version: None,
+            states: vec!["LTheoryRedux".to_string()],
+        });
+    }
+
+    let version = get_game_version_internal(&install_path).ok();
+    let states = get_available_states_internal(&install_path);
+
+    Ok(GameInfo {
+        installed: true,
+        version,
+        states,
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn get_game_version_internal(install_path: &str) -> Result<String, String> {
+    let version_path = Path::new(install_path)
+        .join("script")
+        .join("Config")
+        .join("Version.lua");
+
+    let content = std::fs::read_to_string(&version_path)
+        .map_err(|e| format!("Failed to read Version.lua: {}", e))?;
+
+    for line in content.lines() {
+        if line.contains("Config.gameVersion") {
+            if let Some(start) = line.find('"') {
+                if let Some(end) = line[start + 1..].find('"') {
+                    return Ok(line[start + 1..start + 1 + end].to_string());
+                }
+            }
+        }
+    }
+
+    Err("Version not found in Version.lua".to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn get_available_states_internal(install_path: &str) -> Vec<String> {
+    let mut states = vec!["LTheoryRedux".to_string()];
+    
+    let states_path = Path::new(install_path)
+        .join("script")
+        .join("States")
+        .join("App");
+
+    if let Ok(entries) = std::fs::read_dir(&states_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Ok(children) = std::fs::read_dir(&path) {
+                    for child in children.flatten() {
+                        let child_path = child.path();
+                        if let Some(ext) = child_path.extension() {
+                            if ext == "lua" {
+                                if let Some(name) = child_path.file_stem() {
+                                    states.push(name.to_string_lossy().to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    states
+}
+
+#[tauri::command]
+#[cfg(target_os = "windows")]
+async fn check_config_exists() -> Result<bool, String> {
+    let config_path = get_config_path()?;
+    Ok(config_path.exists())
+}
+
+#[tauri::command]
+async fn open_config(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let config_path = get_config_path()?;
+        if config_path.exists() {
+            app.opener()
+                .open_path(config_path.to_string_lossy().to_string(), None::<&str>)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn get_config_path() -> Result<std::path::PathBuf, String> {
+    let config_dir = dirs::config_dir()
+        .ok_or_else(|| "Could not find config directory".to_string())?;
+    Ok(config_dir
+        .join("LTheoryRedux")
+        .join("LTheoryRedux")
+        .join("data")
+        .join("user.ini"))
+}
+
+#[tauri::command]
+#[cfg(target_os = "windows")]
+fn launch_game(app: AppHandle, state: &str) {
+    if !state.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        eprintln!("Invalid state name: {}", state);
+        return;
+    }
+
     let mut binding = Command::new("cmd");
 
     let binary_path = r"bin\\ltr.exe";
@@ -67,26 +198,38 @@ fn launch_game<R: Runtime>(app: AppHandle<R>, state: &str) {
     };
 
     let _game = binding
-        .args(&["/C", "start", &binary_path, &state])
-        .creation_flags(winapi::um::winbase::DETACHED_PROCESS) // ONLY WINDOWS;
+        .args(&["/C", "start", "", &binary_path, state])
+        .creation_flags(winapi::um::winbase::DETACHED_PROCESS)
         .current_dir(&dir)
         .spawn()
         .expect("Failed to start LTheoryRedux");
 
-    // Exit Launcher
     app.exit(0)
 }
 
 #[tauri::command]
 #[cfg(target_os = "windows")]
-async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Result<(), String> {
+async fn download_game(app: AppHandle, install_path: &str) -> Result<(), String> {
+    let install_path = Path::new(install_path);
+    
+    let canonical_install_path = install_path
+        .canonicalize()
+        .map_err(|e| format!("Invalid install path: {}", e))?;
+    
+    if !canonical_install_path.is_absolute() {
+        return Err("Install path must be absolute".to_string());
+    }
+    
+    if canonical_install_path.to_string_lossy().contains("..") {
+        return Err("Invalid path".to_string());
+    }
+
     let client = Client::new();
     let temp_dir = std::env::temp_dir();
 
-    // make based on OS later
     let url = String::from_str("https://github.com/Limit-Theory-Redux/ltheory/releases/download/latest/ltheory-windows.zip").unwrap();
     let dl_file_path = temp_dir.join("ltheory-windows.zip");
-    let installation_path = Path::new(&install_path).join("Limit Theory Redux");
+    let installation_path = canonical_install_path.join("Limit Theory Redux");
 
     let response = client
         .get(&url)
@@ -110,7 +253,7 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
     let mut last_speed_emit_time = std::time::Instant::now();
     let mut last_downloaded = 0_u64;
 
-    let Some(main_window) = app.get_window("main") else {
+    let Some(main_window) = app.get_webview_window("main") else {
         return Ok(());
     };
 
@@ -184,10 +327,10 @@ async fn download_game<R: Runtime>(app: AppHandle<R>, install_path: &str) -> Res
     Ok(())
 }
 
-async fn extract_zip<R: Runtime>(
+async fn extract_zip(
     zip_path: &Path,
     path: &Path,
-    main_window: &tauri::Window<R>,
+    main_window: &WebviewWindow,
 ) -> Result<(), String> {
     if !path.exists() {
         match std::fs::create_dir(&path) {
@@ -271,18 +414,14 @@ fn delete_directory_contents(dir: std::fs::ReadDir) {
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            let Some(main_window) = app.get_window("main") else {
+            let Some(main_window) = app.get_webview_window("main") else {
                 return Ok(());
             };
 
-            // try to mitigate resize lag
-            main_window.on_window_event(|event| match event {
+            main_window.on_window_event(move |event| match event {
                 WindowEvent::Resized(..) => std::thread::sleep(std::time::Duration::from_nanos(1)),
                 _ => {}
             });
-
-            #[cfg(any(windows, target_os = "macos"))]
-            set_shadow(&main_window, true).unwrap();
 
             Ok(())
         })
@@ -290,19 +429,25 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             println!("{}, {argv:?}, {cwd}", app.package_info().name);
 
-            app.emit_all("single-instance", Payload { args: argv, cwd })
+            app.emit("single-instance", Payload { args: argv, cwd })
                 .unwrap();
 
-            // Show Window
-            let window = app.get_window("main").unwrap();
+            let window = app.get_webview_window("main").unwrap();
             let window_visible = window.is_visible().unwrap();
 
             if !window_visible {
                 window.show().unwrap();
             };
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_installation_path,
+            get_game_info,
+            check_config_exists,
+            open_config,
             launch_game,
             download_game
         ])
