@@ -22,12 +22,54 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - name: setup node
         uses: actions/setup-node@v6
         with:
           node-version: 24
       - name: get version
-        run: echo "PACKAGE_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> $GITHUB_ENV
+        id: version
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: validate version format
+        run: |
+          if [[ ! "${{ env.PACKAGE_VERSION }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Error: Version '${{ env.PACKAGE_VERSION }}' is not valid semver format (e.g., 0.5.0 or 0.5.0-beta.1)"
+            exit 1
+          fi
+          echo "Version format validated: ${{ env.PACKAGE_VERSION }}"
+      - name: check if tag already exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git tag -l | grep -q "^v${{ env.PACKAGE_VERSION }}$"; then
+            echo "Error: Tag v${{ env.PACKAGE_VERSION }} already exists locally"
+            exit 1
+          fi
+          gh release view "v${{ env.PACKAGE_VERSION }}" 2>/dev/null && {
+            echo "Error: Release v${{ env.PACKAGE_VERSION }} already exists on GitHub"
+            exit 1
+          } || echo "Tag v${{ env.PACKAGE_VERSION }} does not exist, proceeding with release"
+      - name: check version in Cargo.toml matches
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version = ' src-tauri/Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          if [ "$CARGO_VERSION" != "${{ env.PACKAGE_VERSION }}" ]; then
+            echo "Error: Version mismatch between tauri.conf.json (${{ env.PACKAGE_VERSION }}) and Cargo.toml ($CARGO_VERSION)"
+            exit 1
+          fi
+          echo "Cargo.toml version matches: $CARGO_VERSION"
+      - name: check version in package.json matches
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "${{ env.PACKAGE_VERSION }}" ]; then
+            echo "Warning: package.json version ($PKG_VERSION) differs from tauri.conf.json (${{ env.PACKAGE_VERSION }})"
+            echo "This is usually fine for Nuxt apps, but noting for awareness."
+          else
+            echo "package.json version matches: $PKG_VERSION"
+          fi
       - name: create release
         id: create-release
         uses: actions/github-script@v8
