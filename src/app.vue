@@ -38,6 +38,7 @@
       v-model="dynamicBg"
       color="indigo"
       label="Play Video"
+      hide-details
     />
     <NuxtPage
       data-tauri-drag-region

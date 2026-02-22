@@ -40,60 +40,60 @@
       v-if="!gameInstalled && !gameDownloadUpdateInstalling"
       class="mb-auto w-48"
       size="large"
+      color="primary"
       @click="installGame()"
       :disabled="gameDownloadUpdateInstalling"
-      >Install</v-btn
-    >
+    >Install</v-btn>
     <v-btn
       v-else-if="!gameInstalled && gameDownloadUpdateInstalling"
       class="mb-2 w-48"
       size="large"
+      color="primary"
       @click="installGame()"
       :disabled="gameDownloadUpdateInstalling"
-      >Install</v-btn
-    >
+    >Install</v-btn>
     <v-btn
       v-else
       class="mb-2 w-48"
       size="large"
+      color="primary"
       :disabled="!gameInstalled || gameDownloadUpdateInstalling"
       @click="launchGame()"
-      >Launch</v-btn
-    >
+    >Launch</v-btn>
     <v-btn
       v-if="
         gameInstalled && gameUpdateAvailable && !gameDownloadUpdateInstalling
       "
       class="mb-2 w-48"
       size="large"
+      color="success"
       :disabled="!gameUpdateAvailable || gameDownloadUpdateInstalling"
       @click="installGameUpdate()"
-      >Update</v-btn
-    >
+    >Update</v-btn>
     <v-btn
       v-if="gameInstalled && !configFound"
       class="mb-auto w-48"
       size="large"
+      color="secondary"
       :disabled="!gameInstalled"
       @click="createConfig()"
-      >Create Config</v-btn
-    >
+    >Create Config</v-btn>
     <v-btn
       v-else-if="gameInstalled && gameUpdateAvailable"
       class="mb-2 w-48"
       size="large"
+      color="secondary"
       :disabled="!gameInstalled || !configFound"
       @click="openConfig()"
-      >Config</v-btn
-    >
+    >Config</v-btn>
     <v-btn
       v-else-if="gameInstalled && configFound"
       class="mb-2 w-48"
       size="large"
+      color="secondary"
       :disabled="!gameInstalled || !configFound"
       @click="openConfig()"
-      >Config</v-btn
-    >
+    >Config</v-btn>
     <div
       v-else-if="gameDownloadUpdateInstalling"
       class="mb-auto text-blue-400 font-mono noselect drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]"
@@ -137,7 +137,7 @@
         v-model="gameSelectedState"
         variant="underlined"
         density="compact"
-        focused
+        color="primary"
         class="absolute bottom-4 right-4 font-mono text-white z-10 w-72"
         hide-details
       ></v-select>

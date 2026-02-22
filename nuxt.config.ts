@@ -104,6 +104,18 @@ export default defineNuxtConfig({
       icons: {
         defaultSet: "unocss-mdi",
       },
+      theme: {
+        defaultTheme: "dark",
+        themes: {
+          dark: {
+            colors: {
+              primary: "#1976D2",
+              secondary: "#424242",
+              success: "#4CAF50",
+            },
+          },
+        },
+      },
     },
   },
 });
