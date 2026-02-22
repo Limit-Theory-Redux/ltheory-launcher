@@ -35,11 +35,11 @@
       "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost data:; media-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://api.github.com https://github.com; script-src 'self' 'unsafe-inline'"
     }
   },
-  "bundle": {
+"bundle": {
     "active": true,
     "category": "Utility",
     "copyright": "IllustrisJack",
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": "v1Compatible",
     "icon": [
       "assets/LTR_Icon.ico"
     ],
@@ -64,9 +64,8 @@
       }
     }
   },
-  "plugins": {
+"plugins": {
     "updater": {
-      "v1Compatible": true,
       "endpoints": [
         "https://github.com/Limit-Theory-Redux/ltheory-launcher/releases/latest/download/latest.json"
       ],
