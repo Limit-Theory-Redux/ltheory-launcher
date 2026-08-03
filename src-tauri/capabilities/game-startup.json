@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "game-startup",
+  "description": "Allows the isolated game startup splash to receive process events and recover to the main launcher.",
+  "windows": ["game-startup"],
+  "permissions": [
+    "core:event:default",
+    "core:window:allow-close"
+  ]
+}

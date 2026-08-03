@@ -1,6 +1,6 @@
 [package]
 name = "ltheory_redux_launcher"
-version = "0.5.0"
+version = "0.6.0"
 description = ""
 authors = ["IllustrisJack"]
 repository = "https://github.com/Limit-Theory-Redux/ltheory-launcher"
@@ -22,13 +22,15 @@ tauri-plugin-updater = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
-dirs = "5"
-winapi = { version = "0.3.9", features = ["winbase"] }
+dirs = "6"
+winapi = { version = "0.3.9", features = ["minwindef", "windef", "winbase", "winuser"] }
 winreg = "0.52"
 reqwest = { version = "0.12.3", features = ["stream"] }
 futures-util = "0.3.14"
 zip = "2.1.1"
 tokio = "1.34"
+tempfile = "3"
+minisign-verify = "0.2.5"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
