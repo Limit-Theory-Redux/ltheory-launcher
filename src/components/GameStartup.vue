@@ -1,15 +1,15 @@
 <template>
-  <section class="fixed inset-0 z-[100] overflow-hidden bg-[#050b11] text-ink">
-    <img class="absolute inset-0 h-full w-full object-cover" :src="splashImage" alt="" draggable="false" />
+  <section class="fixed inset-0 z-[100] isolate overflow-hidden bg-[#050b11] text-ink">
+    <img class="absolute inset-0 z-0 h-full w-full object-cover" :src="splashImage" alt="" draggable="false" />
     <div
-      class="absolute inset-0"
+      class="absolute inset-0 z-[1]"
       :class="mode === 'fullscreen'
         ? 'bg-[radial-gradient(circle_at_72%_38%,rgba(48,153,170,0.12),transparent_34%),linear-gradient(105deg,rgba(2,8,13,0.96)_0%,rgba(2,8,13,0.72)_48%,rgba(2,8,13,0.88)_100%)]'
         : 'bg-[linear-gradient(145deg,rgba(3,10,16,0.78),rgba(3,10,16,0.94))]'"
       aria-hidden="true"
     />
 
-    <div v-if="mode === 'fullscreen'" class="relative mx-auto grid h-full max-w-[1640px] grid-cols-[minmax(0,1fr)_minmax(480px,600px)] items-end gap-[8vw] px-[7vw] pt-[8vh] pb-[9vh]">
+    <div v-if="mode === 'fullscreen'" class="relative z-10 mx-auto grid h-full max-w-[1640px] grid-cols-[minmax(0,1fr)_minmax(480px,600px)] items-end gap-[8vw] px-[7vw] pt-[8vh] pb-[9vh]">
       <div class="pb-2">
         <img class="w-[clamp(320px,27vw,440px)] drop-shadow-[0_10px_24px_rgba(0,0,0,0.65)]" :src="title" alt="Limit Theory Redux" draggable="false" />
         <div class="mt-4 flex items-center gap-2.5">
@@ -41,12 +41,16 @@
         <div class="px-5 pb-5">
           <UiProgress v-if="!error" :value="0" indeterminate label="Game startup in progress" />
           <p class="mt-3 text-[10px]" :class="error ? 'text-danger' : 'text-white/35'">{{ error || "Do not close the launcher while the game is initializing." }}</p>
+          <div v-if="error" class="mt-4 grid grid-cols-2 gap-2">
+            <UiButton variant="secondary" @click="copyErrorLog">{{ copyLabel }}</UiButton>
+            <UiButton variant="secondary" @click="emit('dismiss')">Return to launcher</UiButton>
+          </div>
         </div>
       </div>
     </div>
 
-    <div v-else class="relative flex h-full flex-col p-7">
-      <div class="flex items-start justify-between gap-6">
+    <div v-else class="relative z-10 flex h-full flex-col p-7">
+      <div :key="error ? 'failure-header' : 'startup-header'" class="flex items-start justify-between gap-6">
         <div>
           <img class="w-[270px] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)]" :src="title" alt="Limit Theory Redux" draggable="false" />
           <div class="mt-3 flex items-center gap-2">
@@ -71,13 +75,19 @@
             <span class="mr-2 text-accent/55">›</span>{{ line }}
           </li>
         </ol>
-        <UiButton v-if="error" class="mt-3" block variant="secondary" @click="emit('dismiss')">Return to launcher</UiButton>
+        <div v-if="error" class="mt-3 grid grid-cols-2 gap-2">
+          <UiButton variant="secondary" @click="copyErrorLog">{{ copyLabel }}</UiButton>
+          <UiButton variant="secondary" @click="emit('dismiss')">Return to launcher</UiButton>
+        </div>
       </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { computed, onBeforeUnmount, ref } from "vue";
 import splashImage from "../assets/LTR_SPLASH.png";
 import title from "../assets/LTR_Title.svg";
 
@@ -100,4 +110,41 @@ const emit = defineEmits<{ dismiss: [] }>();
 
 const visibleLines = computed(() => props.lines.slice(-9));
 const compactLines = computed(() => props.lines.slice(-4));
+const copyState = ref<"idle" | "copied" | "failed">("idle");
+const copyLabel = computed(() => {
+  if (copyState.value === "copied") return "Copied log";
+  if (copyState.value === "failed") return "Copy failed";
+  return "Copy error log";
+});
+let copyResetTimer: ReturnType<typeof setTimeout> | undefined;
+
+async function copyErrorLog() {
+  const fallbackLog = [
+    "Limit Theory Redux startup failure",
+    `Error: ${props.error || "Unknown startup error"}`,
+    "",
+    "Startup output:",
+    ...(props.lines.length ? props.lines : ["(no startup output captured)"]),
+  ].join("\n");
+
+  try {
+    const log = isTauri()
+      ? await invoke<string>("get_last_game_launch_log").catch(() => fallbackLog)
+      : fallbackLog;
+    await writeText(log);
+    copyState.value = "copied";
+  } catch (error) {
+    console.error("Unable to copy the startup error log", error);
+    copyState.value = "failed";
+  }
+
+  if (copyResetTimer) clearTimeout(copyResetTimer);
+  copyResetTimer = setTimeout(() => {
+    copyState.value = "idle";
+  }, 2200);
+}
+
+onBeforeUnmount(() => {
+  if (copyResetTimer) clearTimeout(copyResetTimer);
+});
 </script>

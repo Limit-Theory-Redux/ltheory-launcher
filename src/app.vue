@@ -91,13 +91,23 @@ import useBlockFileDrop from "./composables/useBlockFileDrop";
 
 const runningInTauri = isTauri();
 const appWindow = runningInTauri ? getCurrentWindow() : undefined;
+const isLiveStartupWindow = runningInTauri && appWindow?.label.startsWith("game-startup-");
 const dynamicBackground = ref(readBoolean("dynamicBackground", true));
 const windowMaximized = ref(false);
 const launcherUpdateProgress = ref(0);
 const launcherUpdateDownloading = ref(false);
 const launcherUpdateStatus = ref("Downloading launcher update…");
 const launcherUpdateError = ref("");
-const startupPreview = ref<"fullscreen" | "splash" | null>(null);
+const initialStartupMode = isLiveStartupWindow
+  ? "splash"
+  : typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("startupPreview");
+const startupPreview = ref<"fullscreen" | "splash" | null>(
+  initialStartupMode === "fullscreen" || initialStartupMode === "splash"
+    ? initialStartupMode
+    : null,
+);
 const startupStatus = ref("Preparing the main menu");
 const startupError = ref("");
 const startupLines = ref([
@@ -116,20 +126,18 @@ useBlockContextMenu();
 
 onMounted(async () => {
   const params = new URLSearchParams(window.location.search);
-  const startupMode = params.get("startupPreview");
-  if (startupMode === "fullscreen" || startupMode === "splash") {
-    startupPreview.value = startupMode;
+  if (startupPreview.value) {
     if (params.get("startupError") === "true") {
       startupStatus.value = "Startup failed";
       startupError.value = "The game stopped before startup completed. Your installation was not changed.";
       return;
     }
-    if (runningInTauri && params.get("startupLive") === "true") {
+    if (isLiveStartupWindow) {
       startupLines.value = [];
       startupStatus.value = "Starting Limit Theory Redux";
       startupUnlisteners.push(
         await listen<{ line: string }>("game-launch-output", ({ payload }) => {
-          startupLines.value = [...startupLines.value.slice(-99), payload.line];
+          startupLines.value = [...startupLines.value, payload.line];
         }),
         await listen<string>("game-launch-status", ({ payload }) => {
           startupStatus.value = payload;
@@ -140,9 +148,10 @@ onMounted(async () => {
         }),
       );
 
-      const state = params.get("state") || "LTheoryRedux";
       try {
-        await invoke("launch_game", { state });
+        await waitForStartupVisuals();
+        await invoke("show_game_startup");
+        await invoke("launch_game");
       } catch (error) {
         startupStatus.value = "Startup failed";
         startupError.value = typeof error === "string" ? error : "The game could not be started.";
@@ -185,6 +194,20 @@ function readBoolean(key: string, fallback: boolean) {
 
 function slowBackgroundVideo(event: Event) {
   (event.currentTarget as HTMLVideoElement).playbackRate = 0.25;
+}
+
+async function waitForStartupVisuals() {
+  await nextTick();
+  await Promise.all(
+    Array.from(document.images, async (image) => {
+      try {
+        await image.decode();
+      } catch {
+        // The dark native background remains visible if an optional image cannot decode.
+      }
+    }),
+  );
+  await document.fonts.ready;
 }
 
 async function minimizeWindow() {

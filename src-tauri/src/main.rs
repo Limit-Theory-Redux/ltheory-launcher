@@ -8,10 +8,16 @@ use std::io::{self, BufRead, BufReader, Read};
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::mpsc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    mpsc, Mutex,
+};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    webview::Color,
     AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_opener::OpenerExt;
@@ -31,6 +37,7 @@ const GAME_RELEASE_DOWNLOAD_BASE: &str =
 const GAME_ARCHIVE_NAME: &str = "ltheory-windows.zip";
 const GAME_SIGNATURE_NAME: &str = "ltheory-windows.zip.minisig";
 const GAME_SIGNING_PUBLIC_KEY: &str = include_str!("../keys/game-release.pub");
+const LAUNCHER_TRAY_ID: &str = "launcher-tray";
 const MAX_DOWNLOAD_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_SIGNATURE_BYTES: usize = 16 * 1024;
 const MAX_EXTRACTED_BYTES: u64 = 12 * 1024 * 1024 * 1024;
@@ -68,14 +75,146 @@ struct WindowSearch {
     window: HWND,
 }
 
+#[derive(Default)]
+struct PendingLaunch {
+    state: Option<String>,
+    window_label: Option<String>,
+}
+
+#[derive(Default)]
+struct LaunchCoordinator {
+    next_window_id: AtomicU64,
+    pending: Mutex<PendingLaunch>,
+    last_log: Mutex<GameLaunchLog>,
+}
+
+#[derive(Default)]
+struct GameLaunchLog {
+    state: Option<String>,
+    entries: Vec<LaunchOutput>,
+    running: bool,
+    exit_code: Option<i32>,
+    failure: Option<String>,
+}
+
+fn begin_game_launch_log(app: &AppHandle, state: &str) -> Result<(), String> {
+    let coordinator = app.state::<LaunchCoordinator>();
+    let mut log = coordinator
+        .last_log
+        .lock()
+        .map_err(|_| "Could not lock the game launch log".to_string())?;
+    *log = GameLaunchLog {
+        state: Some(state.to_string()),
+        entries: Vec::new(),
+        running: true,
+        exit_code: None,
+        failure: None,
+    };
+    Ok(())
+}
+
+fn append_game_launch_output(app: &AppHandle, output: &LaunchOutput) {
+    if let Ok(mut log) = app.state::<LaunchCoordinator>().last_log.lock() {
+        log.entries.push(output.clone());
+    }
+}
+
+fn finish_game_launch_log(app: &AppHandle, exit_code: Option<i32>, failure: Option<String>) {
+    if let Ok(mut log) = app.state::<LaunchCoordinator>().last_log.lock() {
+        log.running = false;
+        log.exit_code = exit_code;
+        log.failure = failure;
+    }
+}
+
+#[tauri::command]
+fn get_last_game_launch_log(app: AppHandle) -> Result<String, String> {
+    let coordinator = app.state::<LaunchCoordinator>();
+    let log = coordinator
+        .last_log
+        .lock()
+        .map_err(|_| "Could not lock the game launch log".to_string())?;
+    if log.state.is_none() && log.entries.is_empty() {
+        return Err("No game launch log is available yet".to_string());
+    }
+
+    let mut lines = vec![
+        "Limit Theory Redux game launch log".to_string(),
+        format!("State: {}", log.state.as_deref().unwrap_or("unknown")),
+        format!(
+            "Status: {}",
+            if log.running { "running" } else { "finished" }
+        ),
+    ];
+    if let Some(exit_code) = log.exit_code {
+        lines.push(format!("Exit code: {exit_code}"));
+    }
+    if let Some(failure) = &log.failure {
+        lines.push(format!("Failure: {failure}"));
+    }
+    lines.push(String::new());
+    lines.push("Process output:".to_string());
+    if log.entries.is_empty() {
+        lines.push("(no process output captured)".to_string());
+    } else {
+        lines.extend(log.entries.iter().map(|entry| {
+            if entry.line.starts_with('[') {
+                entry.line.clone()
+            } else {
+                format!("[{}] {}", entry.stream, entry.line)
+            }
+        }));
+    }
+    Ok(lines.join("\n"))
+}
+
+#[cfg(target_os = "windows")]
+fn normalized_windows_path(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    if let Some(unc_path) = value.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{unc_path}")
+    } else {
+        value.strip_prefix(r"\\?\").unwrap_or(&value).to_string()
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn save_installation_path(install_path: &Path) -> io::Result<()> {
     let hklm = RegKey::predef(HKEY_CURRENT_USER);
     let path = r"SOFTWARE\LTheoryRedux\LTheoryRedux";
-    let (key, _disp) = hklm.create_subkey(&path)?;
+    let (key, _disp) = hklm.create_subkey(path)?;
 
-    key.set_value("InstallDir", &install_path.to_str().unwrap())?;
+    key.set_value("InstallDir", &normalized_windows_path(install_path))?;
     Ok(())
+}
+
+#[tauri::command]
+#[cfg(target_os = "windows")]
+async fn set_game_installation_path(
+    window: WebviewWindow,
+    install_path: &str,
+) -> Result<String, String> {
+    if window.label() != "main" {
+        return Err("The game location can only be changed from launcher settings".to_string());
+    }
+
+    let selected_path = Path::new(install_path);
+    let canonical_path = selected_path
+        .canonicalize()
+        .map_err(|_| "The selected game folder does not exist".to_string())?;
+    if !canonical_path.is_absolute() {
+        return Err("The game folder must be an absolute path".to_string());
+    }
+    if !canonical_path.join("bin").join("ltr.exe").is_file() {
+        return Err(
+            "This folder is not a Limit Theory Redux installation (bin/ltr.exe is missing)"
+                .to_string(),
+        );
+    }
+
+    save_installation_path(&canonical_path)
+        .map_err(|error| format!("Could not save the game location: {error}"))?;
+    Ok(normalized_windows_path(&canonical_path))
 }
 
 #[tauri::command]
@@ -232,7 +371,11 @@ fn get_config_path() -> Result<std::path::PathBuf, String> {
 
 #[tauri::command]
 #[cfg(target_os = "windows")]
-fn prepare_game_launch(app: AppHandle, window: WebviewWindow, state: &str) -> Result<(), String> {
+async fn prepare_game_launch(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: &str,
+) -> Result<(), String> {
     if window.label() != "main" {
         return Err("Game launch can only be started from the main launcher window".to_string());
     }
@@ -246,56 +389,113 @@ fn prepare_game_launch(app: AppHandle, window: WebviewWindow, state: &str) -> Re
         return Err("Game executable was not found".to_string());
     }
 
-    if let Some(existing) = app.get_webview_window("game-startup") {
-        existing
-            .close()
-            .map_err(|error| format!("Could not reset the startup window: {error}"))?;
+    let coordinator = app.state::<LaunchCoordinator>();
+    let (startup_label, reuse_existing) = {
+        let mut pending = coordinator
+            .pending
+            .lock()
+            .map_err(|_| "Could not lock the pending game launch state".to_string())?;
+        if let Some(label) = pending.window_label.clone() {
+            (label, true)
+        } else {
+            let window_id = coordinator.next_window_id.fetch_add(1, Ordering::Relaxed) + 1;
+            let label = format!("game-startup-{window_id}");
+            pending.state = Some(state.to_string());
+            pending.window_label = Some(label.clone());
+            (label, false)
+        }
+    };
+
+    // Launch preparation is intentionally idempotent. A fast double click or a
+    // second frontend request shares the in-flight startup window. Each actual
+    // launch receives a fresh label so WebView event registrations cannot leak
+    // into the next launch after a window is destroyed.
+    if reuse_existing {
+        if let Some(existing) = app.get_webview_window(&startup_label) {
+            let _ = existing.set_focus();
+        }
+        return Ok(());
     }
 
-    let startup_url = format!("index.html?startupPreview=splash&startupLive=true&state={state}");
-    WebviewWindowBuilder::new(&app, "game-startup", WebviewUrl::App(startup_url.into()))
-        .title("Starting Limit Theory Redux")
-        .inner_size(640.0, 420.0)
-        .resizable(false)
-        .maximizable(false)
-        .minimizable(false)
-        .decorations(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .center()
-        .build()
-        .map_err(|error| format!("Could not create the game startup window: {error}"))?;
+    let build_result =
+        WebviewWindowBuilder::new(&app, &startup_label, WebviewUrl::App("index.html".into()))
+            .title("Starting Limit Theory Redux")
+            .inner_size(640.0, 420.0)
+            .background_color(Color(5, 11, 17, 255))
+            .visible(false)
+            .resizable(false)
+            .maximizable(false)
+            .minimizable(false)
+            .decorations(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .center()
+            .build();
 
-    window
+    if let Err(error) = build_result {
+        clear_pending_launch_if_label(&app, &startup_label);
+        return Err(format!("Could not create the game startup window: {error}"));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(target_os = "windows")]
+fn show_game_startup(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    ensure_active_startup_window(&app, window.label())?;
+
+    set_launcher_tray_visible(&app, true)?;
+
+    let main_window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "The main launcher window is unavailable".to_string())?;
+    main_window
         .hide()
         .map_err(|error| format!("Could not hide the launcher: {error}"))?;
+
+    if let Err(error) = window.show() {
+        let _ = main_window.show();
+        let _ = set_launcher_tray_visible(&app, false);
+        return Err(format!("Could not show the game startup screen: {error}"));
+    }
+    let _ = window.set_focus();
     Ok(())
 }
 
 #[tauri::command]
 #[cfg(target_os = "windows")]
 fn dismiss_game_startup(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    if window.label() != "game-startup" {
-        return Err("Only the startup window can dismiss game startup".to_string());
-    }
+    ensure_active_startup_window(&app, window.label())?;
+    let startup_label = window.label().to_string();
     window
         .close()
         .map_err(|error| format!("Could not close the startup window: {error}"))?;
-    if let Some(main_window) = app.get_webview_window("main") {
-        main_window
-            .show()
-            .map_err(|error| format!("Could not restore the launcher: {error}"))?;
-        let _ = main_window.set_focus();
-    }
+    clear_pending_launch_if_label(&app, &startup_label);
+    restore_main_window(&app);
     Ok(())
 }
 
 #[tauri::command]
 #[cfg(target_os = "windows")]
-fn launch_game(app: AppHandle, window: WebviewWindow, state: &str) -> Result<(), String> {
-    if window.label() != "game-startup" {
-        return Err("The game process must be started from the startup window".to_string());
-    }
+fn launch_game(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let startup_label = window.label().to_string();
+    let state = {
+        let coordinator = app.state::<LaunchCoordinator>();
+        let mut pending = coordinator
+            .pending
+            .lock()
+            .map_err(|_| "Could not lock the pending game launch state".to_string())?;
+        if pending.window_label.as_deref() != Some(startup_label.as_str()) {
+            return Err(
+                "The game process must be started from the active startup window".to_string(),
+            );
+        }
+        pending
+            .state
+            .take()
+            .ok_or_else(|| "No game launch is pending".to_string())?
+    };
     if !state.chars().all(|c| c.is_alphanumeric() || c == '_') {
         return Err("Invalid state name".to_string());
     }
@@ -315,14 +515,22 @@ fn launch_game(app: AppHandle, window: WebviewWindow, state: &str) -> Result<(),
         .map(|content| content.contains("LTR_LAUNCHER_READY"))
         .unwrap_or(false);
 
-    let mut child = Command::new(&binary_path)
-        .arg(state)
+    begin_game_launch_log(&app, &state)?;
+    let child_result = Command::new(&binary_path)
+        .arg(&state)
         .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
         .current_dir(&dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| format!("Failed to start Limit Theory Redux: {error}"))?;
+        .spawn();
+    let mut child = match child_result {
+        Ok(child) => child,
+        Err(error) => {
+            let message = format!("Failed to start Limit Theory Redux: {error}");
+            finish_game_launch_log(&app, None, Some(message.clone()));
+            return Err(message);
+        }
+    };
 
     let process_id = child.id();
     let stdout = child
@@ -334,20 +542,19 @@ fn launch_game(app: AppHandle, window: WebviewWindow, state: &str) -> Result<(),
         .take()
         .ok_or_else(|| "Could not capture game errors".to_string())?;
     let (sender, receiver) = mpsc::channel::<LaunchOutput>();
-    stream_game_output(stdout, "stdout", sender.clone());
-    stream_game_output(stderr, "stderr", sender);
+    let stdout_thread = stream_game_output(stdout, "stdout", sender.clone());
+    let stderr_thread = stream_game_output(stderr, "stderr", sender);
 
     let _ = app.emit("game-launch-status", "Initializing game engine");
-    let _ = app.emit(
-        "game-launch-output",
-        LaunchOutput {
-            stream: "launcher".to_string(),
-            line: format!(
-                "[launcher] Started {} (process {process_id})",
-                binary_path.display()
-            ),
-        },
-    );
+    let started_output = LaunchOutput {
+        stream: "launcher".to_string(),
+        line: format!(
+            "[launcher] Started {} (process {process_id})",
+            binary_path.display()
+        ),
+    };
+    append_game_launch_output(&app, &started_output);
+    let _ = app.emit("game-launch-output", started_output);
 
     let monitor_app = app.clone();
     thread::spawn(move || {
@@ -355,25 +562,45 @@ fn launch_game(app: AppHandle, window: WebviewWindow, state: &str) -> Result<(),
         let mut handoff_complete = false;
         let mut visible_since: Option<Instant> = None;
         let mut last_status = "Initializing game engine".to_string();
+        let mut stdout_thread = Some(stdout_thread);
+        let mut stderr_thread = Some(stderr_thread);
 
         loop {
-            while let Ok(mut output) = receiver.try_recv() {
-                if output.line.contains("LTR_LAUNCHER_READY") {
-                    ready_marker_seen = true;
-                    output.line = "[game] Main menu is ready".to_string();
-                }
-                if let Some(status) = startup_status_for_line(&output.line) {
-                    if status != last_status {
-                        last_status = status.to_string();
-                        let _ = monitor_app.emit("game-launch-status", status);
-                    }
-                }
-                let _ = monitor_app.emit("game-launch-output", output);
+            while let Ok(output) = receiver.try_recv() {
+                forward_game_launch_output(
+                    &monitor_app,
+                    output,
+                    &mut ready_marker_seen,
+                    &mut last_status,
+                );
             }
 
             match child.try_wait() {
                 Ok(Some(status)) => {
+                    if let Some(handle) = stdout_thread.take() {
+                        let _ = handle.join();
+                    }
+                    if let Some(handle) = stderr_thread.take() {
+                        let _ = handle.join();
+                    }
+                    while let Ok(output) = receiver.try_recv() {
+                        forward_game_launch_output(
+                            &monitor_app,
+                            output,
+                            &mut ready_marker_seen,
+                            &mut last_status,
+                        );
+                    }
                     if handoff_complete {
+                        let failure = (!status.success()).then(|| {
+                            status
+                                .code()
+                                .map(|code| format!("The game exited with code {code}."))
+                                .unwrap_or_else(|| {
+                                    "The game process terminated unexpectedly.".to_string()
+                                })
+                        });
+                        finish_game_launch_log(&monitor_app, status.code(), failure);
                         let _ = monitor_app.emit("game-launch-exited", status.code());
                         restore_main_window(&monitor_app);
                     } else {
@@ -383,6 +610,7 @@ fn launch_game(app: AppHandle, window: WebviewWindow, state: &str) -> Result<(),
                             .unwrap_or_else(|| {
                                 "The game stopped before startup completed.".to_string()
                             });
+                        finish_game_launch_log(&monitor_app, status.code(), Some(message.clone()));
                         let _ = monitor_app.emit("game-launch-failed", message);
                     }
                     break;
@@ -390,6 +618,7 @@ fn launch_game(app: AppHandle, window: WebviewWindow, state: &str) -> Result<(),
                 Ok(None) => {}
                 Err(error) => {
                     let message = format!("Could not monitor the game process: {error}");
+                    finish_game_launch_log(&monitor_app, None, Some(message.clone()));
                     let _ = monitor_app.emit("game-launch-failed", message);
                     break;
                 }
@@ -402,18 +631,18 @@ fn launch_game(app: AppHandle, window: WebviewWindow, state: &str) -> Result<(),
                         !supports_ready_marker && first_seen.elapsed() >= Duration::from_secs(2);
                     if ready_marker_seen || fallback_ready {
                         let _ = monitor_app.emit("game-launch-status", "Game ready");
-                        let _ = monitor_app.emit(
-                            "game-launch-output",
-                            LaunchOutput {
-                                stream: "launcher".to_string(),
-                                line: "[launcher] Game window is ready".to_string(),
-                            },
-                        );
+                        let ready_output = LaunchOutput {
+                            stream: "launcher".to_string(),
+                            line: "[launcher] Game window is ready".to_string(),
+                        };
+                        append_game_launch_output(&monitor_app, &ready_output);
+                        let _ = monitor_app.emit("game-launch-output", ready_output);
                         foreground_game_window(game_window);
-                        if let Some(startup_window) = monitor_app.get_webview_window("game-startup")
+                        if let Some(startup_window) = monitor_app.get_webview_window(&startup_label)
                         {
                             let _ = startup_window.close();
                         }
+                        clear_pending_launch_if_label(&monitor_app, &startup_label);
                         handoff_complete = true;
                     }
                 } else {
@@ -429,7 +658,32 @@ fn launch_game(app: AppHandle, window: WebviewWindow, state: &str) -> Result<(),
 }
 
 #[cfg(target_os = "windows")]
-fn stream_game_output<R>(reader: R, stream: &'static str, sender: mpsc::Sender<LaunchOutput>)
+fn forward_game_launch_output(
+    app: &AppHandle,
+    mut output: LaunchOutput,
+    ready_marker_seen: &mut bool,
+    last_status: &mut String,
+) {
+    if output.line.contains("LTR_LAUNCHER_READY") {
+        *ready_marker_seen = true;
+        output.line = "[game] Main menu is ready".to_string();
+    }
+    if let Some(status) = startup_status_for_line(&output.line) {
+        if status != *last_status {
+            *last_status = status.to_string();
+            let _ = app.emit("game-launch-status", status);
+        }
+    }
+    append_game_launch_output(app, &output);
+    let _ = app.emit("game-launch-output", output);
+}
+
+#[cfg(target_os = "windows")]
+fn stream_game_output<R>(
+    reader: R,
+    stream: &'static str,
+    sender: mpsc::Sender<LaunchOutput>,
+) -> thread::JoinHandle<()>
 where
     R: Read + Send + 'static,
 {
@@ -450,12 +704,12 @@ where
                 break;
             }
         }
-    });
+    })
 }
 
 #[cfg(target_os = "windows")]
 fn sanitize_console_line(line: &str) -> String {
-    let mut result = String::with_capacity(line.len().min(600));
+    let mut result = String::with_capacity(line.len());
     let mut chars = line.chars().peekable();
     while let Some(character) = chars.next() {
         if character == '\u{1b}' && chars.peek() == Some(&'[') {
@@ -467,7 +721,7 @@ fn sanitize_console_line(line: &str) -> String {
             }
             continue;
         }
-        if (!character.is_control() || character == '\t') && result.len() < 600 {
+        if !character.is_control() || character == '\t' {
             result.push(character);
         }
     }
@@ -532,10 +786,68 @@ fn foreground_game_window(window: HWND) {
 
 #[cfg(target_os = "windows")]
 fn restore_main_window(app: &AppHandle) {
+    clear_pending_launch_state(app);
+    let _ = set_launcher_tray_visible(app, false);
     if let Some(main_window) = app.get_webview_window("main") {
+        let _ = main_window.emit("game-launch-reset", ());
         let _ = main_window.show();
+        let _ = main_window.unminimize();
         let _ = main_window.set_focus();
     }
+}
+
+fn clear_pending_launch_state(app: &AppHandle) {
+    if let Ok(mut pending) = app.state::<LaunchCoordinator>().pending.lock() {
+        pending.state.take();
+        pending.window_label.take();
+    }
+}
+
+fn clear_pending_launch_if_label(app: &AppHandle, window_label: &str) {
+    if let Ok(mut pending) = app.state::<LaunchCoordinator>().pending.lock() {
+        if pending.window_label.as_deref() == Some(window_label) {
+            pending.state.take();
+            pending.window_label.take();
+        }
+    }
+}
+
+fn ensure_active_startup_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
+    let coordinator = app.state::<LaunchCoordinator>();
+    let pending = coordinator
+        .pending
+        .lock()
+        .map_err(|_| "Could not lock the pending game launch state".to_string())?;
+    if pending.window_label.as_deref() == Some(window_label) {
+        Ok(())
+    } else {
+        Err("This is not the active game startup window".to_string())
+    }
+}
+
+fn show_active_launcher_window(app: &AppHandle) {
+    let startup_label = app
+        .state::<LaunchCoordinator>()
+        .pending
+        .lock()
+        .ok()
+        .and_then(|pending| pending.window_label.clone());
+    if let Some(label) = startup_label {
+        if let Some(startup_window) = app.get_webview_window(&label) {
+            let _ = startup_window.show();
+            let _ = startup_window.set_focus();
+            return;
+        }
+    }
+    restore_main_window(app);
+}
+
+fn set_launcher_tray_visible(app: &AppHandle, visible: bool) -> Result<(), String> {
+    let tray = app
+        .tray_by_id(LAUNCHER_TRAY_ID)
+        .ok_or_else(|| "The launcher tray icon is unavailable".to_string())?;
+    tray.set_visible(visible)
+        .map_err(|error| format!("Could not update the launcher tray icon: {error}"))
 }
 
 #[tauri::command]
@@ -543,23 +855,43 @@ fn restore_main_window(app: &AppHandle) {
 async fn download_game(
     app: AppHandle,
     window: WebviewWindow,
-    install_path: &str,
+    install_path: Option<&str>,
     release_tag: &str,
+    update_existing: bool,
 ) -> Result<(), String> {
     if window.label() != "main" {
         return Err(
             "Game installation can only be started from the main launcher window".to_string(),
         );
     }
-    let install_path = Path::new(install_path);
-
-    let canonical_install_path = install_path
-        .canonicalize()
-        .map_err(|e| format!("Invalid install path: {}", e))?;
-
-    if !canonical_install_path.is_absolute() {
-        return Err("Install path must be absolute".to_string());
-    }
+    let (canonical_install_path, installation_path) = if update_existing {
+        let registered_path = PathBuf::from(
+            get_installation_path_internal()
+                .map_err(|_| "No existing game installation is configured".to_string())?,
+        );
+        let installation_path = registered_path
+            .canonicalize()
+            .map_err(|_| "The configured game installation no longer exists".to_string())?;
+        if !installation_path.join("bin").join("ltr.exe").is_file() {
+            return Err("The configured game installation is incomplete".to_string());
+        }
+        let install_parent = installation_path
+            .parent()
+            .ok_or_else(|| "The configured game installation has no parent folder".to_string())?
+            .to_path_buf();
+        (install_parent, installation_path)
+    } else {
+        let selected_path = install_path
+            .ok_or_else(|| "Choose a parent folder for the game installation".to_string())?;
+        let install_parent = Path::new(selected_path)
+            .canonicalize()
+            .map_err(|error| format!("Invalid install path: {error}"))?;
+        if !install_parent.is_absolute() {
+            return Err("Install path must be absolute".to_string());
+        }
+        let installation_path = install_parent.join("Limit Theory Redux");
+        (install_parent, installation_path)
+    };
 
     let download_url = game_asset_url(release_tag, GAME_ARCHIVE_NAME)?;
     let signature_url = game_asset_url(release_tag, GAME_SIGNATURE_NAME)?;
@@ -579,8 +911,6 @@ async fn download_game(
         .tempfile()
         .map_err(|error| format!("Could not create a temporary download: {error}"))?;
     let dl_file_path = temp_file.into_temp_path();
-    let installation_path = canonical_install_path.join("Limit Theory Redux");
-
     let signature = download_game_signature(&client, &signature_url).await?;
 
     let response = client
@@ -752,39 +1082,6 @@ fn verify_game_archive(archive_path: &Path, signature_text: &str) -> Result<(), 
         .map_err(|error| format!("Game archive signature verification failed: {error}"))
 }
 
-#[cfg(test)]
-mod signature_tests {
-    use super::*;
-
-    const VALID_SIGNATURE: &str = "untrusted comment: signature from minisign secret key\nRUTFoQ7eoeD8I1fn5Gt3F8W3iu7J2n1QO4jXZMXZ6LymsABin/m0SyRkn6GbAK9SeDlZ0/IfprAp7QFW+laLvXYoGt1MzSCTMwQ=\ntrusted comment: LTR signature verification test\nVkYJq3m45p5dFVAA//iqWC+JUE5yjMlL7xKg/uMgIKNd8TEw3AQNnBxalJiQEwqo/zyCqFsREZ/X79P+Fi25DA==\n";
-
-    #[test]
-    fn accepts_authentic_archive_and_rejects_tampering() {
-        let mut archive = tempfile::NamedTempFile::new().expect("create test archive");
-        std::io::Write::write_all(&mut archive, b"LTR signature verification test fixture\n")
-            .expect("write authentic test archive");
-        std::io::Write::flush(&mut archive).expect("flush authentic test archive");
-
-        verify_game_archive(archive.path(), VALID_SIGNATURE)
-            .expect("authentic archive should verify");
-
-        std::io::Write::write_all(&mut archive, b"tampered").expect("tamper with test archive");
-        std::io::Write::flush(&mut archive).expect("flush tampered test archive");
-
-        assert!(verify_game_archive(archive.path(), VALID_SIGNATURE).is_err());
-    }
-
-    #[test]
-    fn release_asset_urls_are_pinned_to_a_valid_tag() {
-        assert_eq!(
-            game_asset_url("v0.1.0-nightly_2", GAME_ARCHIVE_NAME).unwrap(),
-            "https://github.com/Limit-Theory-Redux/ltheory/releases/download/v0.1.0-nightly_2/ltheory-windows.zip"
-        );
-        assert!(game_asset_url("../../latest", GAME_ARCHIVE_NAME).is_err());
-        assert!(game_asset_url("https://example.com", GAME_ARCHIVE_NAME).is_err());
-    }
-}
-
 fn extract_zip(
     zip_path: &Path,
     destination: &Path,
@@ -881,14 +1178,48 @@ fn replace_installation(staging_path: &Path, installation_path: &Path) -> Result
 
 fn main() {
     tauri::Builder::default()
+        .manage(LaunchCoordinator::default())
         .setup(|app| {
+            let open_launcher =
+                MenuItem::with_id(app, "open-launcher", "Open Launcher", true, None::<&str>)?;
+            let quit_launcher =
+                MenuItem::with_id(app, "quit-launcher", "Quit Launcher", true, None::<&str>)?;
+            let tray_menu = Menu::with_items(app, &[&open_launcher, &quit_launcher])?;
+            let mut tray_builder = TrayIconBuilder::with_id(LAUNCHER_TRAY_ID)
+                .tooltip("Limit Theory Redux Launcher")
+                .menu(&tray_menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "open-launcher" => show_active_launcher_window(app),
+                    "quit-launcher" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if matches!(
+                        event,
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        }
+                    ) {
+                        show_active_launcher_window(tray.app_handle());
+                    }
+                });
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            }
+            let tray = tray_builder.build(app)?;
+            tray.set_visible(false)?;
+
             let Some(main_window) = app.get_webview_window("main") else {
                 return Ok(());
             };
 
-            main_window.on_window_event(move |event| match event {
-                WindowEvent::Resized(..) => std::thread::sleep(std::time::Duration::from_nanos(1)),
-                _ => {}
+            main_window.on_window_event(move |event| {
+                if let WindowEvent::Resized(..) = event {
+                    std::thread::sleep(std::time::Duration::from_nanos(1));
+                }
             });
 
             Ok(())
@@ -900,12 +1231,7 @@ fn main() {
             app.emit("single-instance", Payload { args: argv, cwd })
                 .unwrap();
 
-            let window = app.get_webview_window("main").unwrap();
-            let window_visible = window.is_visible().unwrap();
-
-            if !window_visible {
-                window.show().unwrap();
-            };
+            show_active_launcher_window(app);
         }))
         .plugin(
             tauri_plugin_updater::Builder::new()
@@ -913,18 +1239,73 @@ fn main() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_installation_path,
+            set_game_installation_path,
             get_game_info,
             check_config_exists,
             open_config,
             prepare_game_launch,
+            show_game_startup,
             launch_game,
             dismiss_game_startup,
+            get_last_game_launch_log,
             download_game
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri applications");
+}
+
+#[cfg(test)]
+mod signature_tests {
+    use super::*;
+
+    const VALID_SIGNATURE: &str = "untrusted comment: signature from minisign secret key\nRUTFoQ7eoeD8I1fn5Gt3F8W3iu7J2n1QO4jXZMXZ6LymsABin/m0SyRkn6GbAK9SeDlZ0/IfprAp7QFW+laLvXYoGt1MzSCTMwQ=\ntrusted comment: LTR signature verification test\nVkYJq3m45p5dFVAA//iqWC+JUE5yjMlL7xKg/uMgIKNd8TEw3AQNnBxalJiQEwqo/zyCqFsREZ/X79P+Fi25DA==\n";
+
+    #[test]
+    fn removes_windows_extended_path_prefix_before_persisting() {
+        assert_eq!(
+            normalized_windows_path(Path::new(r"\\?\Z:\ltheory")),
+            r"Z:\ltheory"
+        );
+        assert_eq!(
+            normalized_windows_path(Path::new(r"\\?\UNC\server\games\LTR")),
+            r"\\server\games\LTR"
+        );
+    }
+
+    #[test]
+    fn accepts_authentic_archive_and_rejects_tampering() {
+        let mut archive = tempfile::NamedTempFile::new().expect("create test archive");
+        std::io::Write::write_all(&mut archive, b"LTR signature verification test fixture\n")
+            .expect("write authentic test archive");
+        std::io::Write::flush(&mut archive).expect("flush authentic test archive");
+
+        verify_game_archive(archive.path(), VALID_SIGNATURE)
+            .expect("authentic archive should verify");
+
+        std::io::Write::write_all(&mut archive, b"tampered").expect("tamper with test archive");
+        std::io::Write::flush(&mut archive).expect("flush tampered test archive");
+
+        assert!(verify_game_archive(archive.path(), VALID_SIGNATURE).is_err());
+    }
+
+    #[test]
+    fn release_asset_urls_are_pinned_to_a_valid_tag() {
+        assert_eq!(
+            game_asset_url("v0.1.0-nightly_2", GAME_ARCHIVE_NAME).unwrap(),
+            "https://github.com/Limit-Theory-Redux/ltheory/releases/download/v0.1.0-nightly_2/ltheory-windows.zip"
+        );
+        assert!(game_asset_url("../../latest", GAME_ARCHIVE_NAME).is_err());
+        assert!(game_asset_url("https://example.com", GAME_ARCHIVE_NAME).is_err());
+    }
+
+    #[test]
+    fn preserves_complete_game_output_lines() {
+        let long_line = format!("begin-{}-end", "x".repeat(2_000));
+        assert_eq!(sanitize_console_line(&long_line), long_line);
+    }
 }

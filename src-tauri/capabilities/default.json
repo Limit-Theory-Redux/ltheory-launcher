@@ -23,6 +23,7 @@
     },
     "dialog:allow-open",
     "dialog:allow-confirm",
+    "clipboard-manager:allow-write-text",
     "process:allow-restart",
     "updater:allow-check",
     "updater:allow-download-and-install"

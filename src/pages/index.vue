@@ -35,9 +35,68 @@
 
     <article class="launcher-panel relative w-full max-w-[390px] justify-self-end overflow-hidden rounded-[14px] border border-white/15 bg-[linear-gradient(155deg,rgba(12,28,40,0.93),rgba(5,14,22,0.97))] p-5 shadow-[0_26px_72px_rgba(0,0,0,0.38)] backdrop-blur-2xl before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-accent/45 before:to-transparent max-[820px]:mt-auto max-[820px]:max-w-[420px] max-[820px]:p-[17px] max-[560px]:w-full min-[1500px]:max-w-[420px] min-[1500px]:p-[23px] [@media(max-height:680px)]:p-[15px]">
       <div class="mb-4 flex items-center justify-between border-b border-white/[0.07] pb-3 text-[9px] font-bold tracking-[0.12em] text-white/45 uppercase [@media(max-height:680px)]:mb-2.5 [@media(max-height:680px)]:pb-2">
-        <span>Status</span>
-        <span class="text-white/75">{{ gameInstalled ? "Installed" : "Available" }}</span>
+        <span>{{ settingsOpen ? "Launcher settings" : "Status" }}</span>
+        <div class="flex items-center gap-2">
+          <span v-if="!settingsOpen" class="text-white/75">{{ gameDataLoading ? "Checking" : gameInstalled ? "Installed" : "Available" }}</span>
+        <button
+          class="group -m-1 inline-flex size-7 items-center justify-center rounded-md border border-transparent text-white/45 transition hover:border-white/10 hover:bg-white/[0.06] hover:text-white/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          type="button"
+          :aria-label="settingsOpen ? 'Close launcher settings' : 'Open launcher settings'"
+          :title="settingsOpen ? 'Close settings' : 'Launcher settings'"
+          @click="settingsOpen = !settingsOpen"
+        >
+          <svg v-if="settingsOpen" class="size-4 fill-none stroke-current stroke-[1.7] [stroke-linecap:round]" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+          <svg v-else class="size-4 fill-none stroke-current stroke-[1.45] [stroke-linecap:round] [stroke-linejoin:round]" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="2.5" /><path d="M16.4 11.2v-2.4l-1.8-.5a5 5 0 0 0-.5-1.1l.9-1.7-1.7-1.7-1.7.9a5 5 0 0 0-1.1-.5L10 2.4H7.6l-.5 1.8a5 5 0 0 0-1.1.5l-1.7-.9-1.7 1.7.9 1.7A5 5 0 0 0 3 8.3l-1.8.5v2.4l1.8.5a5 5 0 0 0 .5 1.1l-.9 1.7 1.7 1.7 1.7-.9a5 5 0 0 0 1.1.5l.5 1.8H10l.5-1.8a5 5 0 0 0 1.1-.5l1.7.9 1.7-1.7-.9-1.7a5 5 0 0 0 .5-1.1l1.8-.5Z" transform="translate(1.2 0) scale(.88)" /></svg>
+        </button>
+        </div>
       </div>
+
+      <div v-if="settingsOpen" class="min-h-[268px]">
+        <div>
+          <h2 class="text-[15px] font-semibold tracking-[-0.01em] text-ink">Game location</h2>
+          <p class="mt-1 text-[10px] leading-relaxed text-muted">Point the launcher to an existing installation, or choose a new location when installing.</p>
+        </div>
+
+        <div class="mt-4 rounded-xl border border-white/[0.09] bg-black/20 p-3">
+          <div class="flex items-center gap-2 text-[9px] font-bold tracking-[0.09em] text-white/40 uppercase">
+            <span class="size-1.5 rounded-full" :class="gameInstalled ? 'bg-positive' : 'bg-white/25'" aria-hidden="true" />
+            Active game folder
+          </div>
+          <p class="mt-2 break-all text-[10px] leading-[1.45] text-white/75">{{ gamePath || "No game folder configured" }}</p>
+        </div>
+
+        <div class="mt-3 grid gap-2">
+          <UiButton variant="secondary" block :disabled="gameDataLoading || gameLaunching || gameDownloadUpdateInstalling" @click="locateExistingGame">
+            <template #icon><svg viewBox="0 0 20 20"><path d="M3 6.5h5l1.5 1.7H17v7.3H3v-9Z" /></svg></template>
+            {{ gameInstalled ? "Use another game folder" : "Locate existing game" }}
+          </UiButton>
+          <UiButton variant="ghost" block :disabled="gameDataLoading || gameLaunching || gameDownloadUpdateInstalling" @click="installGame">
+            Choose location and install
+          </UiButton>
+        </div>
+
+        <div class="mt-4 border-t border-white/[0.07] pt-3">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h3 class="text-[11px] font-semibold text-white/80">Game diagnostics</h3>
+              <p class="mt-1 text-[9px] leading-relaxed text-muted">Copy all output from the most recent game session, including startup and crash details.</p>
+            </div>
+          </div>
+          <UiButton
+            class="mt-2.5"
+            variant="ghost"
+            block
+            :disabled="!lastGameLogAvailable || gameLaunching"
+            @click="copyLastGameLog"
+          >
+            {{ lastGameLogCopyLabel }}
+          </UiButton>
+        </div>
+
+        <p v-if="settingsError" class="mt-3 rounded-lg border border-danger/20 bg-danger/[0.07] px-2.5 py-2 text-[10px] leading-[1.4] text-danger" role="alert">{{ settingsError }}</p>
+      </div>
+
+      <template v-else>
       <div class="flex min-h-[38px] items-center gap-2.5">
         <span class="size-2.5 shrink-0 rounded-full" :class="statusTone" aria-hidden="true" />
         <div class="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -47,11 +106,16 @@
         <span v-if="gameUpdateAvailable" class="rounded-full border border-positive/25 bg-positive/10 px-2 py-1 text-[9px] font-bold tracking-[0.05em] text-positive uppercase">Update ready</span>
       </div>
 
+      <div v-if="!gameDataLoading && !gameInstalled" class="mt-4 border-t border-white/[0.07] pt-3">
+        <span class="text-[9px] font-bold tracking-[0.12em] text-accent uppercase">First-time setup</span>
+        <p class="mt-1.5 text-[10px] leading-relaxed text-muted">Install the latest build, or connect an existing Limit Theory Redux folder.</p>
+      </div>
+
       <div class="mt-4 [@media(max-height:680px)]:mt-3">
         <UiButton
           block
-          :loading="gameDownloadUpdateInstalling"
-          :disabled="gameDownloadUpdateInstalling"
+          :loading="gameDownloadUpdateInstalling || gameLaunching"
+          :disabled="gameDataLoading || gameDownloadUpdateInstalling || gameLaunching"
           @click="primaryAction"
         >
           <template #icon>
@@ -65,27 +129,36 @@
           <UiButton
             v-if="gameUpdateAvailable"
             variant="success"
-            :disabled="gameDownloadUpdateInstalling"
+            :disabled="gameDataLoading || gameDownloadUpdateInstalling || gameLaunching"
             @click="installGameUpdate"
           >
             Update game
           </UiButton>
           <UiButton
+            v-if="gameInstalled"
             variant="secondary"
-            :disabled="!gameInstalled || !configFound || gameDownloadUpdateInstalling"
+            :disabled="gameDataLoading || !gameInstalled || !configFound || gameDownloadUpdateInstalling || gameLaunching"
             @click="openConfig"
           >
             Game config
+          </UiButton>
+          <UiButton
+            v-if="!gameInstalled"
+            variant="secondary"
+            :disabled="gameDataLoading || gameDownloadUpdateInstalling || gameLaunching"
+            @click="locateExistingGame"
+          >
+            Locate existing
           </UiButton>
         </div>
       </div>
 
       <UiSelect
-        v-if="gameInstalled"
+        v-if="!gameDataLoading && gameInstalled"
         v-model="gameSelectedState"
         label="Launch state"
         :options="gameAvailableStates"
-        :disabled="gameDownloadUpdateInstalling"
+        :disabled="gameDownloadUpdateInstalling || gameLaunching"
       />
 
       <div v-if="gameDownloadUpdateInstalling" class="mt-3 border-t border-white/[0.07] pt-3" aria-live="polite">
@@ -105,13 +178,14 @@
       <dl class="mt-3.5 flex items-center border-t border-white/[0.07] pt-3 text-[9px] [@media(max-height:680px)]:mt-2.5">
         <div class="flex min-w-0 flex-1 items-center gap-2 border-r border-white/10 pr-3">
           <dt class="text-white/40 uppercase tracking-[0.07em]">Game</dt>
-          <dd class="ml-auto truncate text-white/75">{{ gameVersion || "Not installed" }}</dd>
+          <dd class="ml-auto truncate text-white/75">{{ gameDataLoading ? "Checking…" : gameVersion || "Not installed" }}</dd>
         </div>
         <div class="flex min-w-0 flex-1 items-center gap-2 pl-3">
           <dt class="text-white/40 uppercase tracking-[0.07em]">Launcher</dt>
           <dd class="ml-auto truncate text-white/75">{{ appVersion }}</dd>
         </div>
       </dl>
+      </template>
     </article>
   </section>
 </template>
@@ -120,7 +194,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { homeDir } from "@tauri-apps/api/path";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { confirm, open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import title from "../assets/LTR_Title.svg";
@@ -151,19 +225,35 @@ const gameDownloadUpdateSpeed = ref(0);
 const gameDownloadUpdateInstalling = ref(false);
 const gameDownloadUpdateExtracting = ref(false);
 const gameDownloadUpdateExtractingFilesRemaining = ref(0);
+const gameLaunching = ref(false);
 const gameUpdateAvailable = ref(false);
 const configFound = ref(false);
 const operationError = ref("");
+const settingsError = ref("");
+const settingsOpen = ref(false);
+const lastGameLogAvailable = ref(false);
+const lastGameLogCopyState = ref<"idle" | "copied" | "failed">("idle");
+const gameDataLoading = ref(true);
 const latestRelease = shallowRef<ReleaseInfo | null>(null);
 const unlisteners: UnlistenFn[] = [];
 const runningInTauri = isTauri();
+let lastGameLogCopyResetTimer: ReturnType<typeof setTimeout> | undefined;
+
+const lastGameLogCopyLabel = computed(() => {
+  if (lastGameLogCopyState.value === "copied") return "Copied game log";
+  if (lastGameLogCopyState.value === "failed") return "Could not copy log";
+  return lastGameLogAvailable.value ? "Copy last game log" : "No game log available";
+});
 
 const primaryActionLabel = computed(() => {
+  if (gameDataLoading.value) return "Checking installation…";
+  if (gameLaunching.value) return "Starting game…";
   if (gameDownloadUpdateExtracting.value) return "Installing files…";
   if (gameDownloadUpdateInstalling.value) return "Downloading…";
   return gameInstalled.value ? "Launch game" : "Install game";
 });
 const statusTitle = computed(() => {
+  if (gameDataLoading.value) return "Checking installation";
   if (operationError.value) return "Action needed";
   if (gameDownloadUpdateExtracting.value) return "Installing files";
   if (gameDownloadUpdateInstalling.value) return "Downloading game";
@@ -172,12 +262,14 @@ const statusTitle = computed(() => {
   return "Game not installed";
 });
 const statusDetail = computed(() => {
+  if (gameDataLoading.value) return "Reading the existing game location";
   if (operationError.value) return "The last operation did not complete";
   if (gameDownloadUpdateInstalling.value) return downloadStatus.value;
   if (gameInstalled.value) return `Version ${gameVersion.value || "unknown"}`;
   return "Choose an install location to get started";
 });
 const statusTone = computed(() => {
+  if (gameDataLoading.value) return "animate-soft-pulse bg-accent shadow-[0_0_14px_rgba(114,215,239,0.62)]";
   if (operationError.value) {
     return "bg-danger shadow-[0_0_0_4px_rgba(255,127,142,0.12),0_0_14px_rgba(255,127,142,0.4)]";
   }
@@ -206,12 +298,29 @@ onMounted(async () => {
 
   appVersion.value = await getVersion();
   await registerDownloadListeners();
+  unlisteners.push(
+    await listen("game-launch-reset", async () => {
+      gameLaunching.value = false;
+      await refreshLastGameLogAvailability();
+    }),
+    await listen<number | null>("game-launch-exited", async (event) => {
+      if (event.payload !== null && event.payload !== 0) {
+        operationError.value = `The game exited with code ${event.payload}. The full log is available in settings.`;
+      }
+      await refreshLastGameLogAvailability();
+    }),
+    await listen<string>("game-launch-failed", async () => {
+      await refreshLastGameLogAvailability();
+    }),
+  );
   await loadGameData();
   await checkConfigExists();
+  await refreshLastGameLogAvailability();
 });
 
 function applyPreviewState(state: string) {
-  appVersion.value = "0.6.0";
+  gameDataLoading.value = false;
+  appVersion.value = "0.6.1";
   gameVersion.value = "0.9.4";
   gamePath.value = "C:\\Games\\Limit Theory Redux";
   gameInstalled.value = true;
@@ -253,7 +362,36 @@ function applyPreviewState(state: string) {
 
 onUnmounted(() => {
   for (const unlisten of unlisteners) unlisten();
+  if (lastGameLogCopyResetTimer) clearTimeout(lastGameLogCopyResetTimer);
 });
+
+async function refreshLastGameLogAvailability() {
+  try {
+    await invoke<string>("get_last_game_launch_log");
+    lastGameLogAvailable.value = true;
+  } catch {
+    lastGameLogAvailable.value = false;
+  }
+}
+
+async function copyLastGameLog() {
+  settingsError.value = "";
+  try {
+    const log = await invoke<string>("get_last_game_launch_log");
+    await writeText(log);
+    lastGameLogAvailable.value = true;
+    lastGameLogCopyState.value = "copied";
+  } catch (error) {
+    lastGameLogCopyState.value = "failed";
+    settingsError.value = "The most recent game log could not be copied.";
+    console.error("Unable to copy the most recent game log", error);
+  }
+
+  if (lastGameLogCopyResetTimer) clearTimeout(lastGameLogCopyResetTimer);
+  lastGameLogCopyResetTimer = setTimeout(() => {
+    lastGameLogCopyState.value = "idle";
+  }, 2200);
+}
 
 async function registerDownloadListeners() {
   unlisteners.push(
@@ -285,6 +423,7 @@ async function registerDownloadListeners() {
 }
 
 async function loadGameData() {
+  gameDataLoading.value = true;
   try {
     const info = await invoke<GameInfo>("get_game_info");
     gameInstalled.value = info.installed;
@@ -294,11 +433,13 @@ async function loadGameData() {
       gameSelectedState.value = gameAvailableStates.value[0] ?? "LTheoryRedux";
     }
 
-    if (info.installed && info.version) await checkUpdateAvailable();
+    if (info.installed && info.version) void checkUpdateAvailable();
     if (info.installed) gamePath.value = await invoke<string>("get_installation_path");
   } catch (error) {
     operationError.value = "Could not read the current game installation.";
     console.error("Unable to load game data", error);
+  } finally {
+    gameDataLoading.value = false;
   }
 }
 
@@ -313,7 +454,8 @@ async function checkConfigExists() {
 async function checkUpdateAvailable() {
   try {
     const release = await getLatestRelease();
-    const latestVersion = (release.tag_name || release.name).replace(/^v/i, "");
+    const nightlyVersion = release.name.match(/^Nightly\s+(.+)$/i)?.[1];
+    const latestVersion = (nightlyVersion || release.tag_name).replace(/^v/i, "");
     gameUpdateAvailable.value = Boolean(latestVersion && latestVersion !== gameVersion.value.replace(/^v/i, ""));
   } catch (error) {
     gameUpdateAvailable.value = false;
@@ -354,12 +496,8 @@ async function primaryAction() {
 
 async function installGame() {
   operationError.value = "";
-  const selected = await open({
-    title: "Select installation folder",
-    multiple: false,
-    directory: true,
-    defaultPath: await homeDir(),
-  });
+  settingsError.value = "";
+  const selected = await pickGameFolder("Select installation folder");
   if (typeof selected !== "string") return;
 
   const confirmed = await confirm(
@@ -368,27 +506,60 @@ async function installGame() {
   );
   if (!confirmed) return;
 
-  await startInstall(selected);
+  settingsOpen.value = false;
+  await startInstall(selected, false);
+}
+
+async function locateExistingGame() {
+  operationError.value = "";
+  settingsError.value = "";
+  const selected = await pickGameFolder(
+    "Select the Limit Theory Redux game folder",
+    gamePath.value || undefined,
+  );
+  if (typeof selected !== "string") return;
+
+  try {
+    gamePath.value = await invoke<string>("set_game_installation_path", { installPath: selected });
+    await loadGameData();
+    await checkConfigExists();
+    settingsOpen.value = false;
+  } catch (error) {
+    const message = typeof error === "string" ? error : "The selected folder could not be used.";
+    settingsError.value = message;
+    operationError.value = message;
+  }
+}
+
+async function pickGameFolder(title: string, defaultPath?: string) {
+  try {
+    return await open({
+      title,
+      multiple: false,
+      directory: true,
+      ...(defaultPath ? { defaultPath } : {}),
+    });
+  } catch (error) {
+    const message = "The native folder picker could not be opened.";
+    settingsError.value = message;
+    operationError.value = message;
+    console.error("Unable to open the native game folder picker", error);
+    return null;
+  }
 }
 
 async function installGameUpdate() {
-  const suffix = /[\\/]Limit Theory Redux$/i;
-  const installRoot = gamePath.value.replace(suffix, "");
-  if (!installRoot || installRoot === gamePath.value) {
-    operationError.value = "The existing installation path is invalid.";
-    return;
-  }
-  await startInstall(installRoot);
+  await startInstall(null, true);
 }
 
-async function startInstall(installPath: string) {
+async function startInstall(installPath: string | null, updateExisting: boolean) {
   operationError.value = "";
   gameDownloadUpdateProgress.value = 0;
   gameDownloadUpdateInstalling.value = true;
   gameDownloadUpdateExtracting.value = false;
   try {
     const release = await getLatestRelease();
-    await invoke("download_game", { installPath, releaseTag: release.tag_name });
+    await invoke("download_game", { installPath, releaseTag: release.tag_name, updateExisting });
   } catch (error) {
     gameDownloadUpdateInstalling.value = false;
     operationError.value = error instanceof Error
@@ -399,10 +570,13 @@ async function startInstall(installPath: string) {
 }
 
 async function launchGame() {
+  if (gameLaunching.value) return;
   operationError.value = "";
+  gameLaunching.value = true;
   try {
     await invoke("prepare_game_launch", { state: gameSelectedState.value });
   } catch (error) {
+    gameLaunching.value = false;
     operationError.value = typeof error === "string" ? error : "The game could not be launched.";
     console.error("Unable to launch game", error);
   }

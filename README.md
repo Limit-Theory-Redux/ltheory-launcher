@@ -4,7 +4,7 @@ A Windows launcher for Limit Theory Redux built with Tauri 2, Rust, Nuxt 4, and 
 
 > Limit Theory Redux is in early development. Expect incomplete features and breaking changes.
 
-> **Upgrading from launcher 5.0.1?** Install 0.6.0 manually once from the
+> **Upgrading from launcher 5.0.1?** Install 0.6.1 manually once from the
 > [latest release](https://github.com/Limit-Theory-Redux/ltheory-launcher/releases/latest).
 > Automatic updates resume after that reinstall.
 
